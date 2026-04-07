@@ -900,6 +900,9 @@ async function generateNoteRemboursement() {
   if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
   if (!rows.length) { showToast('Aucun frais CB perso Pierre pour cette sélection', 'error'); return; }
 
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('Autorise les popups pour ce site puis réessaie.'); return; }
+
   const btn = document.getElementById('btn-note-remboursement');
   const btnLabel = btn.querySelector('.btn-doc-label');
   btn.disabled = true;
@@ -1008,10 +1011,9 @@ async function generateNoteRemboursement() {
   ${justifSections}
   </body></html>`;
 
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => { try { w.print(); } catch(e) {} }, 1000);
+  printWindow.document.write(html);
+  printWindow.document.close();
+  setTimeout(() => { try { printWindow.print(); } catch(e) {} }, 1000);
 
   btn.disabled = false;
   btnLabel.textContent = 'Note de remboursement de frais';

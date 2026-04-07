@@ -48,7 +48,7 @@
     .payeur-pill-sub { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.08em; margin-top: 3px; display: block; }
     .payeur-pill.selected { border-color: var(--accent); background: var(--blanc); }
     .payeur-pill.selected .payeur-pill-name { color: var(--accent); }
-    .pill-pierre-wide { grid-column: span 3; }
+    .pill-pierre-wide { grid-column: span 2; }
     .upload-zone { border: 1px dashed var(--separateur); padding: 28px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; background: var(--fond-chaud); position: relative; }
     .upload-zone:hover { border-color: var(--accent); }
     .upload-zone.analyzing { border-color: var(--accent); border-style: solid; background: #FDF6F4; }
@@ -103,11 +103,20 @@
     .config-banner { background: var(--blanc); border: 1px solid var(--separateur); border-left: 3px solid var(--accent); padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: var(--gris-discret); display: none; }
     .config-banner.show { display: block; }
     .config-banner code { font-family: 'DM Mono', monospace; font-size: 11px; background: var(--gris-leger); padding: 2px 6px; color: var(--encre); }
+    .btn-rembourse { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; transition: all 0.15s; margin-top: 4px; display: block; }
+    .btn-rembourse:hover { background: var(--accent); color: var(--blanc); }
+    .doc-buttons { display: flex; flex-direction: column; gap: 12px; }
+    .btn-doc { display: flex; align-items: center; gap: 16px; background: var(--blanc); border: 1px solid var(--separateur); padding: 20px 24px; cursor: pointer; transition: border-color 0.15s; text-align: left; width: 100%; }
+    .btn-doc:hover { border-color: var(--accent); }
+    .btn-doc-icon { font-size: 24px; }
+    .btn-doc-label { font-family: 'Spectral', serif; font-size: 17px; font-weight: 400; color: var(--encre); display: block; }
+    .btn-doc-sub { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.1em; margin-top: 3px; display: block; }
+    .doc-filter { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .doc-filter-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
     @media (max-width: 520px) {
       .summary-grid { grid-template-columns: 1fr 1fr; }
       .form-row.two { grid-template-columns: 1fr; }
       .payeur-grid { grid-template-columns: 1fr 1fr; }
-      .
       .table-header { grid-template-columns: 60px 1fr 75px; }
       .expense-row { grid-template-columns: 60px 1fr 75px; }
       .th:nth-child(3),.th:nth-child(5),.expense-row > *:nth-child(3),.expense-row > *:nth-child(5) { display: none; }
@@ -124,6 +133,7 @@
 <div class="nav-tabs">
   <button class="tab-btn active" onclick="switchTab('saisie', this)">Saisie</button>
   <button class="tab-btn" onclick="switchTab('tableau', this)">Tableau de bord</button>
+  <button class="tab-btn" onclick="switchTab('documents', this)">Documents</button>
 </div>
 
 <main>
@@ -191,7 +201,7 @@
           <div class="form-group">
             <label>Montant TTC <span class="ia-badge" id="badge-montant">IA</span></label>
             <div class="montant-wrapper">
-              <input type="number" id="montant" step="0.01" min="0.01" placeholder="0.00" required>
+              <input type="number" id="montant" step="0.01" min="0.01" placeholder="0.00" inputmode="decimal" required>
             </div>
           </div>
         </div>
@@ -213,7 +223,7 @@
                   <span class="payeur-pill-sub">Compte pro</span>
                 </label>
               </div>
-              <div class="payeur-pill" id="pill-pierre_perso" onclick="selectPayeur('pierre_perso')">
+              <div class="payeur-pill pill-pierre-wide" id="pill-pierre_perso" onclick="selectPayeur('pierre_perso')">
                 <label class="payeur-pill-label">
                   <input type="radio" name="payeur" value="pierre_perso">
                   <span class="payeur-pill-name">CB perso Pierre</span>
@@ -234,6 +244,14 @@
         <span class="summary-amount" id="total-global">—</span>
         <span class="summary-desc">Total frais</span>
       </div>
+      <div class="summary-card">
+        <span class="summary-amount" id="total-indy">—</span>
+        <span class="summary-desc">CB Indy + Virement</span>
+      </div>
+      <div class="summary-card alert">
+        <span class="summary-amount" id="total-pierre">—</span>
+        <span class="summary-desc">Perso Pierre · à rembourser</span>
+      </div>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
       <div class="filter-bar" style="margin-bottom:0">
@@ -248,9 +266,38 @@
     <div class="expense-table">
       <div class="table-header">
         <div class="th">Tournage</div><div class="th">Description</div>
-        <div class="th">Catégorie</div><div class="th">Montant</div><div class="th">Payeur</div>
+        <div class="th">Payeur</div><div class="th">Montant</div><div class="th">Statut</div>
       </div>
       <div id="expense-list"><div class="empty-state">Chargement…</div></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-documents">
+    <div class="card" style="margin-bottom:20px">
+      <div class="form-title">Filtrer par tournage</div>
+      <div class="doc-filter">
+        <span class="doc-filter-label">Tournage :</span>
+        <button class="filter-chip active" onclick="selectDocFilter('all',this)">Tous</button>
+        <button class="filter-chip" onclick="selectDocFilter('T-01',this)">T-01 Nancy</button>
+        <button class="filter-chip" onclick="selectDocFilter('T-02',this)">T-02 Lyon</button>
+        <button class="filter-chip" onclick="selectDocFilter('T-03',this)">T-03</button>
+      </div>
+    </div>
+    <div class="doc-buttons">
+      <button class="btn-doc" onclick="generateNoteRemboursement()">
+        <span class="btn-doc-icon">&#128203;</span>
+        <span>
+          <span class="btn-doc-label">Note de remboursement de frais</span>
+          <span class="btn-doc-sub">CB perso Pierre · à imprimer ou exporter en PDF</span>
+        </span>
+      </button>
+      <button class="btn-doc" onclick="generateChecklistIndy()">
+        <span class="btn-doc-icon">&#9989;</span>
+        <span>
+          <span class="btn-doc-label">Checklist de saisie Indy</span>
+          <span class="btn-doc-sub">CB Indy + Virement Indy · cases à cocher au fur et à mesure</span>
+        </span>
+      </button>
     </div>
   </div>
 </main>
@@ -282,6 +329,7 @@ function switchTab(tab, el) {
   document.getElementById('view-' + tab).classList.add('active');
   el.classList.add('active');
   if (tab === 'tableau') loadExpenses();
+  if (tab === 'documents' && !allExpenses.length) loadExpenses();
 }
 
 function selectPayeur(val) {
@@ -296,6 +344,14 @@ async function handleFileSelect(input) {
   if (!selectedFile) return;
   document.getElementById('filename-display').textContent = selectedFile.name;
   document.getElementById('upload-text').textContent = selectedFile.name;
+  // Vérification taille (max 5 Mo)
+  if (selectedFile.size > 5 * 1024 * 1024) {
+    showToast('Fichier trop lourd (max 5 Mo) — compresser avant envoi', 'error');
+    selectedFile = null; input.value = ''; return;
+  }
+  // HEIC/HEIF non supporté par l'API Claude
+  const isHeic = selectedFile.type === 'image/heic' || selectedFile.type === 'image/heif' || selectedFile.name.toLowerCase().endsWith('.heic') || selectedFile.name.toLowerCase().endsWith('.heif');
+  if (isHeic) { showToast('Format HEIC non supporté — exporter en JPEG depuis Photos', 'error'); selectedFile = null; input.value = ''; return; }
   if (selectedFile.type.startsWith('image/')) {
     const reader = new FileReader();
     reader.onload = e => { const p = document.getElementById('upload-preview'); p.src = e.target.result; p.style.display = 'block'; };
@@ -321,11 +377,15 @@ Règles: montant_ttc = total TTC euros. date = date transaction. description = n
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content: [block, { type: 'text', text: prompt }] }] })
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: [block, { type: 'text', text: prompt }] }] })
   });
   if (!resp.ok) throw new Error('API ' + resp.status);
   const d = await resp.json();
-  return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+  try {
+    return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+  } catch {
+    return {};
+  }
 }
 
 function prefillForm(d) {
@@ -343,10 +403,10 @@ function prefillForm(d) {
     document.getElementById(badge).classList.add('show');
     n++;
   });
-  if (n > 0) {
-    document.getElementById('ia-result').classList.add('show');
-    document.getElementById('ia-result-text').textContent = `IA · ${n} champ${n>1?'s':''} pré-rempli${n>1?'s':''} — vérifier avant d'enregistrer`;
-  }
+  document.getElementById('ia-result').classList.add('show');
+  document.getElementById('ia-result-text').textContent = n > 0
+    ? `IA · ${n} champ${n>1?'s':''} pré-rempli${n>1?'s':''} — vérifier avant d'enregistrer`
+    : 'IA · ticket illisible ou vide — saisie manuelle requise';
 }
 
 function clearIaFill() {
@@ -405,8 +465,10 @@ async function loadExpenses() {
 
 function renderSummary() {
   const total  = allExpenses.reduce((s,r) => s + r.montant, 0);
+  const indy   = allExpenses.filter(r => r.payeur === 'indy_cb' || r.payeur === 'indy_virement').reduce((s,r) => s + r.montant, 0);
   const pierre = allExpenses.filter(r => r.payeur === 'pierre_perso' && r.statut === 'remboursement_en_attente').reduce((s,r) => s + r.montant, 0);
   document.getElementById('total-global').textContent = fmt(total);
+  document.getElementById('total-indy').textContent   = fmt(indy);
   document.getElementById('total-pierre').textContent = fmt(pierre);
 }
 
@@ -421,15 +483,128 @@ function renderExpenses() {
     const p = pc[r.payeur] || { l: r.payeur, c: 'pill-indy' };
     const pending = r.statut === 'remboursement_en_attente';
     const link = r.justificatif_url ? ` <a href="${r.justificatif_url}" target="_blank" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--accent);text-decoration:none;">&#128206;</a>` : '';
-    return `<div class="expense-row"><div class="cell-mono" style="font-size:11px">${r.tournage}</div><div><span class="cell">${r.description}${link}</span><span class="cell-sub">${r.categorie} · ${r.date_depense}</span></div><div><span class="pill ${p.c}">${p.l}</span></div><div class="cell-mono">${fmt(r.montant)}</div><div class="status-cell"><span class="dot ${pending?'dot-pending':'dot-ok'}"></span>${pending?'À rembourser':'Traité'}</div></div>`;
+    const rembBtn = (pending && r.payeur === 'pierre_perso') ? `<button class="btn-rembourse" onclick="marquerRembourse('${r.id}')">Marquer remboursé</button>` : '';
+    return `<div class="expense-row"><div class="cell-mono" style="font-size:11px">${r.tournage}</div><div><span class="cell">${r.description}${link}</span><span class="cell-sub">${r.categorie} · ${r.date_depense}</span></div><div><span class="pill ${p.c}">${p.l}</span></div><div class="cell-mono">${fmt(r.montant)}</div><div class="status-cell" style="flex-direction:column;align-items:flex-start"><div><span class="dot ${pending?'dot-pending':'dot-ok'}"></span>${pending?'À rembourser':'Remboursé'}</div>${rembBtn}</div></div>`;
   }).join('');
 }
 
 function filterBy(val, el) {
   currentFilter = val;
-  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#view-tableau .filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   renderExpenses();
+}
+
+async function marquerRembourse(id) {
+  const { error } = await sb.from(TABLE).update({ statut: 'rembourse' }).eq('id', id);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Frais marqué comme remboursé ✓', 'success');
+  await loadExpenses();
+}
+
+let docFilter = 'all';
+function selectDocFilter(val, el) {
+  docFilter = val;
+  document.querySelectorAll('#view-documents .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function docStyles() {
+  return `<style>
+    @import url('https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500&family=Source+Sans+3:wght@300;400;600&family=DM+Mono:wght@300;400;500&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Source Sans 3', sans-serif; color: #1C1C1C; background: #FBF9F7; padding: 40px; max-width: 780px; margin: 0 auto; }
+    .doc-header { border-bottom: 3px solid #A63020; padding-bottom: 16px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .brand { font-family: 'Spectral', serif; font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .brand span { color: #A63020; font-weight: 300; font-size: 13px; letter-spacing: 0.22em; display: block; }
+    .doc-title { font-family: 'Spectral', serif; font-size: 26px; font-weight: 400; margin-bottom: 4px; }
+    .doc-meta { font-family: 'DM Mono', monospace; font-size: 10px; color: #767676; letter-spacing: 0.1em; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    thead th { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: #A63020; text-transform: uppercase; padding: 8px 12px; background: #F5F0EC; text-align: left; border-bottom: 1px solid #EEE8E2; }
+    tbody td { font-size: 13px; padding: 11px 12px; border-bottom: 1px solid #EEE8E2; vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+    .mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+    .total-row { background: #FDF6F4; font-weight: 600; }
+    .total-row td { border-top: 2px solid #A63020; font-family: 'Spectral', serif; font-size: 17px; }
+    .check-col { width: 28px; text-align: center; }
+    input[type=checkbox] { width: 14px; height: 14px; accent-color: #A63020; }
+    .footer { font-family: 'DM Mono', monospace; font-size: 9px; color: #767676; margin-top: 32px; letter-spacing: 0.08em; }
+    @media print { body { padding: 20px; background: white; } .no-print { display: none; } }
+  </style>`;
+}
+
+function generateNoteRemboursement() {
+  let rows = allExpenses.filter(r => r.payeur === 'pierre_perso');
+  if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
+  if (!rows.length) { showToast('Aucun frais CB perso Pierre pour cette sélection', 'error'); return; }
+  const total = rows.reduce((s, r) => s + r.montant, 0);
+  const label = docFilter === 'all' ? 'Tous les tournages' : docFilter;
+  const date  = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  const lignes = rows.map(r => `<tr>
+    <td class="mono">${r.date_depense}</td>
+    <td>${r.description}</td>
+    <td>${r.categorie}</td>
+    <td>${r.tournage}</td>
+    <td class="mono" style="text-align:right">${fmt(r.montant)}</td>
+  </tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de remboursement</title>${docStyles()}</head><body>
+  <div class="doc-header">
+    <div><div class="brand">TDM<span>studio</span></div></div>
+    <div style="text-align:right">
+      <div class="doc-title">Note de remboursement</div>
+      <div class="doc-meta">${label} · Établie le ${date}</div>
+    </div>
+  </div>
+  <p class="doc-meta" style="margin-bottom:8px">Bénéficiaire : Pierre · CB personnelle · Frais avancés à rembourser</p>
+  <table>
+    <thead><tr><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th style="text-align:right">Montant TTC</th></tr></thead>
+    <tbody>
+      ${lignes}
+      <tr class="total-row"><td colspan="4" style="padding-top:14px">Total à rembourser</td><td class="mono" style="text-align:right;padding-top:14px">${fmt(total)}</td></tr>
+    </tbody>
+  </table>
+  <div class="footer" style="margin-top:40px">Signature / Date de remboursement : ___________________________</div>
+  <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
+  </body></html>`;
+  const w = window.open('', '_blank'); w.document.write(html); w.document.close();
+}
+
+function generateChecklistIndy() {
+  let rows = allExpenses.filter(r => r.payeur === 'indy_cb' || r.payeur === 'indy_virement');
+  if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
+  if (!rows.length) { showToast('Aucun frais Indy pour cette sélection', 'error'); return; }
+  const total = rows.reduce((s, r) => s + r.montant, 0);
+  const label = docFilter === 'all' ? 'Tous les tournages' : docFilter;
+  const date  = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  const payeurLabel = { indy_cb: 'CB Indy', indy_virement: 'Virement' };
+  const lignes = rows.map(r => `<tr>
+    <td class="check-col"><input type="checkbox"></td>
+    <td class="mono">${r.date_depense}</td>
+    <td>${r.description}</td>
+    <td>${r.categorie}</td>
+    <td>${r.tournage}</td>
+    <td class="mono">${payeurLabel[r.payeur] || r.payeur}</td>
+    <td class="mono" style="text-align:right">${fmt(r.montant)}</td>
+  </tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Checklist Indy</title>${docStyles()}</head><body>
+  <div class="doc-header">
+    <div><div class="brand">TDM<span>studio</span></div></div>
+    <div style="text-align:right">
+      <div class="doc-title">Checklist saisie Indy</div>
+      <div class="doc-meta">${label} · Générée le ${date}</div>
+    </div>
+  </div>
+  <p class="doc-meta" style="margin-bottom:8px">Cocher au fur et à mesure de l'attachement des justificatifs dans Indy</p>
+  <table>
+    <thead><tr><th class="check-col">✓</th><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th>Payeur</th><th style="text-align:right">Montant TTC</th></tr></thead>
+    <tbody>
+      ${lignes}
+      <tr class="total-row"><td colspan="6" style="padding-top:14px">Total</td><td class="mono" style="text-align:right;padding-top:14px">${fmt(total)}</td></tr>
+    </tbody>
+  </table>
+  <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
+  </body></html>`;
+  const w = window.open('', '_blank'); w.document.write(html); w.document.close();
 }
 
 function fmt(n) { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n || 0); }

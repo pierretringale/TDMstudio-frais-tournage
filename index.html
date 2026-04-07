@@ -116,6 +116,13 @@
     .btn-doc-sub { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.1em; margin-top: 3px; display: block; }
     .doc-filter { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
     .doc-filter-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
+    .tva-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .tva-pill { border: 1px solid var(--separateur); cursor: pointer; background: var(--fond-chaud); transition: all 0.15s; padding: 10px 12px; }
+    .tva-pill.selected { border-color: var(--accent); background: var(--blanc); }
+    .tva-pill .payeur-pill-name { font-family: 'Source Sans 3', sans-serif; font-size: 13px; font-weight: 600; color: var(--encre); display: block; }
+    .tva-pill.selected .payeur-pill-name { color: var(--accent); }
+    .tva-pill .payeur-pill-sub { font-family: 'DM Mono', monospace; font-size: 8px; color: var(--gris-sec); letter-spacing: 0.06em; margin-top: 3px; display: block; }
+    .ht-display { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--gris-sec); margin-top: 8px; min-height: 16px; letter-spacing: 0.05em; }
     #modal-overlay { display:none; position:fixed; inset:0; background:rgba(28,28,28,0.55); z-index:200; align-items:center; justify-content:center; padding:20px; }
     #modal-overlay.show { display:flex; }
     #modal { background:var(--blanc); width:100%; max-width:560px; max-height:90vh; overflow-y:auto; display:flex; flex-direction:column; }
@@ -135,6 +142,7 @@
     .modal-btn-save:hover { background:var(--accent); }
     .modal-btn-save:disabled { background:var(--gris-sec); cursor:not-allowed; }
     @media (max-width: 520px) {
+      .tva-grid { grid-template-columns: repeat(2, 1fr); }
       .summary-grid { grid-template-columns: 1fr 1fr; }
       .form-row.two { grid-template-columns: 1fr; }
       .payeur-grid { grid-template-columns: 1fr 1fr; }
@@ -224,7 +232,31 @@
           <div class="form-group">
             <label>Montant TTC <span class="ia-badge" id="badge-montant">IA</span></label>
             <div class="montant-wrapper">
-              <input type="number" id="montant" step="0.01" min="0.01" placeholder="0.00" inputmode="decimal" required>
+              <input type="number" id="montant" step="0.01" min="0.01" placeholder="0.00" inputmode="decimal" oninput="updateHtDisplay()" required>
+            </div>
+            <div class="ht-display" id="ht-display"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Taux de TVA <span class="ia-badge" id="badge-tva">IA</span></label>
+            <div class="tva-grid">
+              <div class="tva-pill" id="tva-20" onclick="selectTva(20)">
+                <span class="payeur-pill-name">20 %</span>
+                <span class="payeur-pill-sub">Hôtels · matériel</span>
+              </div>
+              <div class="tva-pill" id="tva-10" onclick="selectTva(10)">
+                <span class="payeur-pill-name">10 %</span>
+                <span class="payeur-pill-sub">Resto · transport</span>
+              </div>
+              <div class="tva-pill" id="tva-5_5" onclick="selectTva(5.5)">
+                <span class="payeur-pill-name">5,5 %</span>
+                <span class="payeur-pill-sub">Rare</span>
+              </div>
+              <div class="tva-pill" id="tva-0" onclick="selectTva(0)">
+                <span class="payeur-pill-name">0 %</span>
+                <span class="payeur-pill-sub">Non récupérable</span>
+              </div>
             </div>
           </div>
         </div>
@@ -321,6 +353,13 @@
           <span class="btn-doc-sub">CB Indy + Virement Indy · cases à cocher au fur et à mesure</span>
         </span>
       </button>
+      <button class="btn-doc" onclick="generateRecapTva()">
+        <span class="btn-doc-icon">&#128200;</span>
+        <span>
+          <span class="btn-doc-label">Récapitulatif TVA</span>
+          <span class="btn-doc-sub">Synthèse par taux · Base HT / TVA / TTC · tous payeurs</span>
+        </span>
+      </button>
       <button class="btn-doc" id="btn-zip" onclick="downloadZip()">
         <span class="btn-doc-icon">&#128230;</span>
         <span>
@@ -391,7 +430,8 @@
         <div class="form-group">
           <label>Montant TTC</label>
           <div class="montant-wrapper">
-            <input type="number" id="modal-montant" step="0.01" min="0.01" inputmode="decimal">
+            <input type="number" id="modal-montant" step="0.01" min="0.01" inputmode="decimal" oninput="updateModalHtDisplay()">
+            <div class="ht-display" id="modal-ht-display"></div>
           </div>
         </div>
         <div class="form-group">
@@ -401,6 +441,25 @@
             <option value="remboursement_en_attente">À rembourser</option>
             <option value="rembourse">Remboursé</option>
           </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Taux de TVA</label>
+          <div class="tva-grid">
+            <div class="tva-pill modal-tva-pill" id="modal-tva-20" onclick="selectModalTva(20)">
+              <span class="payeur-pill-name">20 %</span><span class="payeur-pill-sub">Hôtels · matériel</span>
+            </div>
+            <div class="tva-pill modal-tva-pill" id="modal-tva-10" onclick="selectModalTva(10)">
+              <span class="payeur-pill-name">10 %</span><span class="payeur-pill-sub">Resto · transport</span>
+            </div>
+            <div class="tva-pill modal-tva-pill" id="modal-tva-5_5" onclick="selectModalTva(5.5)">
+              <span class="payeur-pill-name">5,5 %</span><span class="payeur-pill-sub">Rare</span>
+            </div>
+            <div class="tva-pill modal-tva-pill" id="modal-tva-0" onclick="selectModalTva(0)">
+              <span class="payeur-pill-name">0 %</span><span class="payeur-pill-sub">Non récupérable</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="form-row">
@@ -441,7 +500,37 @@ const CATEGORIES        = ['Conception & Préparation','Tournage — Personnel',
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let allExpenses = [], currentFilter = 'all', selectedFile = null, selectedPayeur = null;
+let allExpenses = [], currentFilter = 'all', selectedFile = null, selectedPayeur = null, selectedTva = null;
+
+const TVA_ORDER  = [20, 10, 5.5, 0, null];
+const TVA_LABELS = { 20: 'TVA 20 %', 10: 'TVA 10 %', 5.5: 'TVA 5,5 %', 0: 'TVA 0 % / Non récupérable', null: 'TVA non renseignée' };
+function tvaId(v)   { return 'tva-' + String(v).replace('.', '_'); }
+function htFromTtc(ttc, taux) { return taux != null ? ttc / (1 + taux / 100) : ttc; }
+function tvaFromTtc(ttc, taux) { return taux != null ? ttc - htFromTtc(ttc, taux) : 0; }
+
+function selectTva(val) {
+  selectedTva = val;
+  document.querySelectorAll('.tva-pill:not(.modal-tva-pill)').forEach(p => p.classList.remove('selected'));
+  document.getElementById(tvaId(val)).classList.add('selected');
+  document.getElementById('badge-tva').classList.remove('show'); // badge IA retiré si sélection manuelle
+  updateHtDisplay();
+}
+function updateHtDisplay() {
+  const montant = parseFloat(document.getElementById('montant').value) || 0;
+  const el = document.getElementById('ht-display');
+  el.textContent = (selectedTva != null && montant > 0) ? `HT : ${fmt(htFromTtc(montant, selectedTva))}` : '';
+}
+function selectModalTva(val) {
+  modalSelectedTva = val;
+  document.querySelectorAll('.modal-tva-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('modal-' + tvaId(val)).classList.add('selected');
+  updateModalHtDisplay();
+}
+function updateModalHtDisplay() {
+  const montant = parseFloat(document.getElementById('modal-montant').value) || 0;
+  const el = document.getElementById('modal-ht-display');
+  el.textContent = (modalSelectedTva != null && montant > 0) ? `HT : ${fmt(htFromTtc(montant, modalSelectedTva))}` : '';
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('date_depense').valueAsDate = new Date();
@@ -506,7 +595,7 @@ async function analyzeWithClaude(file) {
 
 function prefillForm(d) {
   const map = [
-    { key: 'montant_ttc', id: 'montant', badge: 'badge-montant', set: v => { document.getElementById('montant').value = parseFloat(v).toFixed(2); } },
+    { key: 'montant_ttc', id: 'montant', badge: 'badge-montant', set: v => { document.getElementById('montant').value = parseFloat(v).toFixed(2); updateHtDisplay(); } },
     { key: 'date', id: 'date_depense', badge: 'badge-date', set: v => { document.getElementById('date_depense').value = v; } },
     { key: 'description', id: 'description', badge: 'badge-desc', set: v => { document.getElementById('description').value = v; } },
     { key: 'categorie', id: 'categorie', badge: 'badge-cat', set: v => { document.getElementById('categorie').value = v; } }
@@ -519,6 +608,13 @@ function prefillForm(d) {
     document.getElementById(badge).classList.add('show');
     n++;
   });
+  // TVA extraite par l'IA
+  const TVA_VALID = [20, 10, 5.5, 0];
+  if (d.taux_tva != null && TVA_VALID.includes(parseFloat(d.taux_tva))) {
+    selectTva(parseFloat(d.taux_tva));
+    document.getElementById('badge-tva').classList.add('show');
+    n++;
+  }
   document.getElementById('ia-result').classList.add('show');
   document.getElementById('ia-result-text').textContent = n > 0
     ? `IA · ${n} champ${n>1?'s':''} pré-rempli${n>1?'s':''} — vérifier avant d'enregistrer`
@@ -527,9 +623,12 @@ function prefillForm(d) {
 
 function clearIaFill() {
   ['montant','date_depense','description','categorie'].forEach(id => { const el = document.getElementById(id); el.value = ''; el.classList.remove('ia-filled'); });
-  ['badge-montant','badge-date','badge-desc','badge-cat'].forEach(id => document.getElementById(id).classList.remove('show'));
+  ['badge-montant','badge-date','badge-desc','badge-cat','badge-tva'].forEach(id => document.getElementById(id).classList.remove('show'));
   document.getElementById('ia-result').classList.remove('show');
   document.getElementById('date_depense').valueAsDate = new Date();
+  document.getElementById('ht-display').textContent = '';
+  selectedTva = null;
+  document.querySelectorAll('.tva-pill:not(.modal-tva-pill)').forEach(p => p.classList.remove('selected'));
 }
 
 function fileToBase64(file) {
@@ -552,7 +651,7 @@ document.getElementById('frais-form').addEventListener('submit', async e => {
   }
   const payeur = selectedPayeur;
   const statut = ['indy_cb','indy_virement'].includes(payeur) ? 'traite' : 'remboursement_en_attente';
-  const row = { tournage: document.getElementById('tournage').value, date_depense: document.getElementById('date_depense').value, categorie: document.getElementById('categorie').value, description: document.getElementById('description').value, montant: parseFloat(document.getElementById('montant').value), payeur, statut, justificatif_url };
+  const row = { tournage: document.getElementById('tournage').value, date_depense: document.getElementById('date_depense').value, categorie: document.getElementById('categorie').value, description: document.getElementById('description').value, montant: parseFloat(document.getElementById('montant').value), payeur, statut, justificatif_url, taux_tva: selectedTva };
   const { error } = await sb.from(TABLE).insert([row]);
   if (error) { showToast('Erreur : ' + error.message, 'error'); }
   else {
@@ -566,7 +665,9 @@ document.getElementById('frais-form').addEventListener('submit', async e => {
     document.getElementById('upload-text').textContent = 'Photo, scan ou PDF — analyse automatique';
     document.getElementById('upload-preview').style.display = 'none';
     document.getElementById('date_depense').valueAsDate = new Date();
-    selectedFile = null; selectedPayeur = null;
+    document.getElementById('ht-display').textContent = '';
+    document.querySelectorAll('.tva-pill:not(.modal-tva-pill)').forEach(p => p.classList.remove('selected'));
+    selectedFile = null; selectedPayeur = null; selectedTva = null;
   }
   btn.disabled = false; btn.textContent = 'Enregistrer le frais';
 });
@@ -619,7 +720,7 @@ async function marquerRembourse(id) {
 }
 
 // ── Modale édition ─────────────────────────────────────────────────────────
-let editingId = null, modalSelectedFile = null, modalSelectedPayeur = null;
+let editingId = null, modalSelectedFile = null, modalSelectedPayeur = null, modalSelectedTva = null;
 
 function openEditModal(id) {
   const r = allExpenses.find(e => e.id === id);
@@ -651,6 +752,16 @@ function openEditModal(id) {
   const pp = document.getElementById('modal-pill-' + r.payeur);
   if (pp) pp.classList.add('selected');
 
+  // TVA
+  modalSelectedTva = r.taux_tva != null ? parseFloat(r.taux_tva) : null;
+  document.querySelectorAll('.modal-tva-pill').forEach(p => p.classList.remove('selected'));
+  if (modalSelectedTva != null) {
+    const tp = document.getElementById('modal-' + tvaId(modalSelectedTva));
+    if (tp) tp.classList.add('selected');
+  }
+  document.getElementById('modal-ht-display').textContent = (modalSelectedTva != null && r.montant)
+    ? `HT : ${fmt(htFromTtc(r.montant, modalSelectedTva))}` : '';
+
   // Reset upload
   document.getElementById('modal-filename').textContent = '';
   document.getElementById('modal-upload-text').textContent = 'Remplacer le justificatif';
@@ -665,7 +776,7 @@ function openEditModal(id) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('show');
   document.body.style.overflow = '';
-  editingId = null; modalSelectedFile = null; modalSelectedPayeur = null;
+  editingId = null; modalSelectedFile = null; modalSelectedPayeur = null; modalSelectedTva = null;
 }
 
 function handleOverlayClick(e) {
@@ -714,6 +825,7 @@ async function saveEdit() {
     montant:       parseFloat(document.getElementById('modal-montant').value),
     payeur:        modalSelectedPayeur,
     statut:        document.getElementById('modal-statut').value,
+    taux_tva:      modalSelectedTva,
     justificatif_url,
   };
 
@@ -758,6 +870,10 @@ function docStyles() {
     .mono { font-family: 'DM Mono', monospace; font-size: 12px; }
     .total-row { background: #FDF6F4; font-weight: 600; }
     .total-row td { border-top: 2px solid #A63020; font-family: 'Spectral', serif; font-size: 17px; }
+    .section-header td { background: #F5F0EC; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: #A63020; text-transform: uppercase; padding: 6px 12px; }
+    .subtotal-row td { background: #FBF9F7; font-family: 'DM Mono', monospace; font-size: 11px; color: #595959; border-top: 1px dashed #EEE8E2; padding: 8px 12px; }
+    .grand-total-row td { border-top: 2px solid #A63020; font-family: 'Spectral', serif; font-size: 15px; background: #FDF6F4; padding: 12px; }
+    .right { text-align: right; }
     .check-col { width: 28px; text-align: center; }
     input[type=checkbox] { width: 14px; height: 14px; accent-color: #A63020; }
     .footer { font-family: 'DM Mono', monospace; font-size: 9px; color: #767676; margin-top: 32px; letter-spacing: 0.08em; }
@@ -765,35 +881,46 @@ function docStyles() {
   </style>`;
 }
 
+function buildTvaGroups(rows) {
+  const grouped = {};
+  TVA_ORDER.forEach(t => grouped[String(t)] = []);
+  rows.forEach(r => {
+    const k = r.taux_tva != null ? String(parseFloat(r.taux_tva)) : 'null';
+    if (grouped[k] === undefined) grouped[k] = [];
+    grouped[k].push(r);
+  });
+  return grouped;
+}
+
 function generateNoteRemboursement() {
   let rows = allExpenses.filter(r => r.payeur === 'pierre_perso');
   if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
   if (!rows.length) { showToast('Aucun frais CB perso Pierre pour cette sélection', 'error'); return; }
-  const total = rows.reduce((s, r) => s + r.montant, 0);
   const label = docFilter === 'all' ? 'Tous les tournages' : docFilter;
   const date  = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
-  const lignes = rows.map(r => `<tr>
-    <td class="mono">${r.date_depense}</td>
-    <td>${r.description}</td>
-    <td>${r.categorie}</td>
-    <td>${r.tournage}</td>
-    <td class="mono" style="text-align:right">${fmt(r.montant)}</td>
-  </tr>`).join('');
+  const grouped = buildTvaGroups(rows);
+  let bodyRows = '', grandTTC = 0, grandTVA = 0, grandHT = 0;
+  TVA_ORDER.forEach(t => {
+    const group = grouped[String(t)];
+    if (!group || !group.length) return;
+    const taux = t != null ? t : 0;
+    const ssTTC = group.reduce((s,r) => s + r.montant, 0);
+    const ssHT  = group.reduce((s,r) => s + htFromTtc(r.montant, taux), 0);
+    const ssTVA = ssTTC - ssHT;
+    grandTTC += ssTTC; grandHT += ssHT; grandTVA += ssTVA;
+    bodyRows += `<tr class="section-header"><td colspan="7">${TVA_LABELS[t]}</td></tr>`;
+    group.forEach(r => {
+      const ht = htFromTtc(r.montant, taux), tva = tvaFromTtc(r.montant, taux);
+      bodyRows += `<tr><td class="mono">${r.date_depense}</td><td>${r.description}</td><td>${r.categorie}</td><td>${r.tournage}</td><td class="mono right">${fmt(ht)}</td><td class="mono right">${fmt(tva)}</td><td class="mono right">${fmt(r.montant)}</td></tr>`;
+    });
+    bodyRows += `<tr class="subtotal-row"><td colspan="4">Sous-total ${TVA_LABELS[t]}</td><td class="right">${fmt(ssHT)}</td><td class="right">${fmt(ssTVA)}</td><td class="right">${fmt(ssTTC)}</td></tr>`;
+  });
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de remboursement</title>${docStyles()}</head><body>
-  <div class="doc-header">
-    <div><div class="brand">TDM<span>studio</span></div></div>
-    <div style="text-align:right">
-      <div class="doc-title">Note de remboursement</div>
-      <div class="doc-meta">${label} · Établie le ${date}</div>
-    </div>
-  </div>
+  <div class="doc-header"><div><div class="brand">TDM<span>studio</span></div></div><div style="text-align:right"><div class="doc-title">Note de remboursement</div><div class="doc-meta">${label} · Établie le ${date}</div></div></div>
   <p class="doc-meta" style="margin-bottom:8px">Bénéficiaire : Pierre · CB personnelle · Frais avancés à rembourser</p>
   <table>
-    <thead><tr><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th style="text-align:right">Montant TTC</th></tr></thead>
-    <tbody>
-      ${lignes}
-      <tr class="total-row"><td colspan="4" style="padding-top:14px">Total à rembourser</td><td class="mono" style="text-align:right;padding-top:14px">${fmt(total)}</td></tr>
-    </tbody>
+    <thead><tr><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th class="right">HT</th><th class="right">TVA</th><th class="right">TTC</th></tr></thead>
+    <tbody>${bodyRows}<tr class="grand-total-row"><td colspan="4">Total à rembourser</td><td class="right">${fmt(grandHT)}</td><td class="right">${fmt(grandTVA)}</td><td class="right">${fmt(grandTTC)}</td></tr></tbody>
   </table>
   <div class="footer" style="margin-top:40px">Signature / Date de remboursement : ___________________________</div>
   <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
@@ -805,34 +932,61 @@ function generateChecklistIndy() {
   let rows = allExpenses.filter(r => r.payeur === 'indy_cb' || r.payeur === 'indy_virement');
   if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
   if (!rows.length) { showToast('Aucun frais Indy pour cette sélection', 'error'); return; }
-  const total = rows.reduce((s, r) => s + r.montant, 0);
   const label = docFilter === 'all' ? 'Tous les tournages' : docFilter;
   const date  = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
-  const payeurLabel = { indy_cb: 'CB Indy', indy_virement: 'Virement' };
-  const lignes = rows.map(r => `<tr>
-    <td class="check-col"><input type="checkbox"></td>
-    <td class="mono">${r.date_depense}</td>
-    <td>${r.description}</td>
-    <td>${r.categorie}</td>
-    <td>${r.tournage}</td>
-    <td class="mono">${payeurLabel[r.payeur] || r.payeur}</td>
-    <td class="mono" style="text-align:right">${fmt(r.montant)}</td>
-  </tr>`).join('');
+  const pLabel = { indy_cb: 'CB Indy', indy_virement: 'Virement' };
+  const grouped = buildTvaGroups(rows);
+  let bodyRows = '', grandTTC = 0, grandTVA = 0, grandHT = 0;
+  TVA_ORDER.forEach(t => {
+    const group = grouped[String(t)];
+    if (!group || !group.length) return;
+    const taux = t != null ? t : 0;
+    const ssTTC = group.reduce((s,r) => s + r.montant, 0);
+    const ssHT  = group.reduce((s,r) => s + htFromTtc(r.montant, taux), 0);
+    const ssTVA = ssTTC - ssHT;
+    grandTTC += ssTTC; grandHT += ssHT; grandTVA += ssTVA;
+    bodyRows += `<tr class="section-header"><td colspan="9">${TVA_LABELS[t]}</td></tr>`;
+    group.forEach(r => {
+      const ht = htFromTtc(r.montant, taux), tva = tvaFromTtc(r.montant, taux);
+      bodyRows += `<tr><td class="check-col"><input type="checkbox"></td><td class="mono">${r.date_depense}</td><td>${r.description}</td><td>${r.categorie}</td><td>${r.tournage}</td><td class="mono">${pLabel[r.payeur]||r.payeur}</td><td class="mono right">${fmt(ht)}</td><td class="mono right">${fmt(tva)}</td><td class="mono right">${fmt(r.montant)}</td></tr>`;
+    });
+    bodyRows += `<tr class="subtotal-row"><td colspan="6">Sous-total ${TVA_LABELS[t]}</td><td class="right">${fmt(ssHT)}</td><td class="right">${fmt(ssTVA)}</td><td class="right">${fmt(ssTTC)}</td></tr>`;
+  });
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Checklist Indy</title>${docStyles()}</head><body>
-  <div class="doc-header">
-    <div><div class="brand">TDM<span>studio</span></div></div>
-    <div style="text-align:right">
-      <div class="doc-title">Checklist saisie Indy</div>
-      <div class="doc-meta">${label} · Générée le ${date}</div>
-    </div>
-  </div>
+  <div class="doc-header"><div><div class="brand">TDM<span>studio</span></div></div><div style="text-align:right"><div class="doc-title">Checklist saisie Indy</div><div class="doc-meta">${label} · Générée le ${date}</div></div></div>
   <p class="doc-meta" style="margin-bottom:8px">Cocher au fur et à mesure de l'attachement des justificatifs dans Indy</p>
   <table>
-    <thead><tr><th class="check-col">✓</th><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th>Payeur</th><th style="text-align:right">Montant TTC</th></tr></thead>
-    <tbody>
-      ${lignes}
-      <tr class="total-row"><td colspan="6" style="padding-top:14px">Total</td><td class="mono" style="text-align:right;padding-top:14px">${fmt(total)}</td></tr>
-    </tbody>
+    <thead><tr><th class="check-col">✓</th><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th>Payeur</th><th class="right">HT</th><th class="right">TVA</th><th class="right">TTC</th></tr></thead>
+    <tbody>${bodyRows}<tr class="grand-total-row"><td colspan="6">Total</td><td class="right">${fmt(grandHT)}</td><td class="right">${fmt(grandTVA)}</td><td class="right">${fmt(grandTTC)}</td></tr></tbody>
+  </table>
+  <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
+  </body></html>`;
+  const w = window.open('', '_blank'); w.document.write(html); w.document.close();
+}
+
+function generateRecapTva() {
+  let rows = allExpenses;
+  if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
+  if (!rows.length) { showToast('Aucun frais pour cette sélection', 'error'); return; }
+  const label = docFilter === 'all' ? 'Tous les tournages' : docFilter;
+  const date  = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  let totalHT = 0, totalTVA = 0, totalTTC = 0;
+  const TVA_DISPLAY = { 20: '20 %', 10: '10 %', 5.5: '5,5 %', 0: '0 % / Non récupérable', null: 'Non renseigné' };
+  const lignes = TVA_ORDER.map(t => {
+    const group = rows.filter(r => t === null ? r.taux_tva == null : parseFloat(r.taux_tva) === t);
+    if (!group.length) return '';
+    const taux = t != null ? t : 0;
+    const ttc = group.reduce((s,r) => s + r.montant, 0);
+    const ht  = group.reduce((s,r) => s + htFromTtc(r.montant, taux), 0);
+    const tva = ttc - ht;
+    totalHT += ht; totalTVA += tva; totalTTC += ttc;
+    return `<tr><td class="mono">${TVA_DISPLAY[t]}</td><td class="mono right">${fmt(ht)}</td><td class="mono right">${fmt(tva)}</td><td class="mono right">${fmt(ttc)}</td></tr>`;
+  }).join('');
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Récap TVA</title>${docStyles()}</head><body>
+  <div class="doc-header"><div><div class="brand">TDM<span>studio</span></div></div><div style="text-align:right"><div class="doc-title">Récapitulatif TVA</div><div class="doc-meta">${label} · Généré le ${date}</div></div></div>
+  <table>
+    <thead><tr><th>Taux</th><th class="right">Base HT</th><th class="right">TVA</th><th class="right">Total TTC</th></tr></thead>
+    <tbody>${lignes}<tr class="grand-total-row"><td>Total</td><td class="right">${fmt(totalHT)}</td><td class="right">${fmt(totalTVA)}</td><td class="right">${fmt(totalTTC)}</td></tr></tbody>
   </table>
   <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
   </body></html>`;

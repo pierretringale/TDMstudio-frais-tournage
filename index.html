@@ -6,6 +6,7 @@
   <title>Frais tournage — TDM studio</title>
   <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;1,300&family=Source+Sans+3:wght@300;400;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
       --encre: #1C1C1C; --accent: #A63020; --fond-chaud: #FBF9F7;
@@ -298,6 +299,13 @@
         <span>
           <span class="btn-doc-label">Checklist de saisie Indy</span>
           <span class="btn-doc-sub">CB Indy + Virement Indy · cases à cocher au fur et à mesure</span>
+        </span>
+      </button>
+      <button class="btn-doc" id="btn-zip" onclick="downloadZip()">
+        <span class="btn-doc-icon">&#128230;</span>
+        <span>
+          <span class="btn-doc-label">Télécharger les justificatifs (ZIP)</span>
+          <span class="btn-doc-sub">Tous payeurs · fichiers renommés par tournage / date / catégorie</span>
         </span>
       </button>
     </div>
@@ -597,6 +605,51 @@ function generateChecklistIndy() {
   <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
   </body></html>`;
   const w = window.open('', '_blank'); w.document.write(html); w.document.close();
+}
+
+async function downloadZip() {
+  let rows = allExpenses.filter(r => r.justificatif_url);
+  if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
+  if (!rows.length) { showToast('Aucun justificatif pour cette sélection', 'error'); return; }
+
+  const btn = document.getElementById('btn-zip');
+  const originalContent = btn.innerHTML;
+  btn.disabled = true;
+  btn.querySelector('.btn-doc-label').textContent = 'Préparation du ZIP…';
+
+  function slugify(str) {
+    return (str || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+  }
+
+  const zip = new JSZip();
+  const fetches = rows.map(async r => {
+    try {
+      const resp = await fetch(r.justificatif_url);
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const ext = (r.justificatif_url.split('?')[0].split('.').pop() || 'bin').toLowerCase();
+      const tournageSlug = (r.tournage || '').replace('-', '');
+      const filename = `${tournageSlug}_${r.date_depense}_${slugify(r.description)}_${slugify(r.categorie)}.${ext}`;
+      zip.file(filename, blob);
+    } catch { /* fichier inaccessible — ignoré */ }
+  });
+
+  await Promise.all(fetches);
+
+  const label = docFilter === 'all' ? 'Tous' : docFilter.replace('-', '');
+  const content = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = `Justificatifs_${label}.zip`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  btn.disabled = false;
+  btn.innerHTML = originalContent;
 }
 
 function fmt(n) { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n || 0); }

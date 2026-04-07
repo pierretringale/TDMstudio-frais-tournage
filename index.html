@@ -307,7 +307,7 @@
 <script>
 const SUPABASE_URL      = 'https://eqlofgcravaihvfaysdb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxbG9mZ2NyYXZhaWh2ZmF5c2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MzMyODIsImV4cCI6MjA4NjUwOTI4Mn0.rOG3bc5V-oo5BfMskHduohT1GOzyEi_Kf_UJSR18gRo';
-const ANTHROPIC_KEY     = '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';
+const ANALYZE_URL       = `${SUPABASE_URL}/functions/v1/analyze-receipt`;
 const STORAGE_BUCKET    = 'justificatifs-frais';
 const TABLE             = 'frais_tournage';
 const CATEGORIES        = ['Conception & Préparation','Tournage — Personnel','Déplacements & Logement','Matériel','Post-Production','Assets Marketing','Autre'];
@@ -319,7 +319,7 @@ let allExpenses = [], currentFilter = 'all', selectedFile = null, selectedPayeur
 
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('date_depense').valueAsDate = new Date();
-  if (SUPABASE_ANON_KEY === 'REMPLACER_PAR_CLE_ANON' || ANTHROPIC_KEY === 'REMPLACER_PAR_CLE_ANTHROPIC')
+  if (SUPABASE_ANON_KEY === 'REMPLACER_PAR_CLE_ANON')
     document.getElementById('config-banner').classList.add('show');
 });
 
@@ -357,7 +357,6 @@ async function handleFileSelect(input) {
     reader.onload = e => { const p = document.getElementById('upload-preview'); p.src = e.target.result; p.style.display = 'block'; };
     reader.readAsDataURL(selectedFile);
   }
-  if (ANTHROPIC_KEY === 'REMPLACER_PAR_CLE_ANTHROPIC') return;
   const zone = document.getElementById('upload-zone'), bar = document.getElementById('analyzing-bar');
   zone.classList.add('analyzing'); bar.classList.add('show'); input.style.pointerEvents = 'none';
   try { const data = await analyzeWithClaude(selectedFile); if (data) prefillForm(data); }
@@ -367,25 +366,16 @@ async function handleFileSelect(input) {
 
 async function analyzeWithClaude(file) {
   const base64 = await fileToBase64(file);
-  const isPdf = file.type === 'application/pdf';
-  const block = isPdf
-    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-    : { type: 'image', source: { type: 'base64', media_type: file.type, data: base64 } };
-  const prompt = `Analyse ce justificatif de frais professionnel. Réponds UNIQUEMENT avec ce JSON sans texte autour :
-{"montant_ttc":<nombre ou null>,"date":"<YYYY-MM-DD ou null>","description":"<fournisseur + objet, max 80 chars, ou null>","categorie":"<parmi : ${CATEGORIES.join(' | ')} — ou null>"}
-Règles: montant_ttc = total TTC euros. date = date transaction. description = nom fournisseur + nature dépense. categorie = valeur exacte de la liste.`;
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  const resp = await fetch(ANALYZE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: [block, { type: 'text', text: prompt }] }] })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ file_base64: base64, media_type: file.type }),
   });
-  if (!resp.ok) throw new Error('API ' + resp.status);
-  const d = await resp.json();
-  try {
-    return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
-  } catch {
-    return {};
-  }
+  if (!resp.ok) throw new Error('Edge Function ' + resp.status);
+  return await resp.json();
 }
 
 function prefillForm(d) {

@@ -183,8 +183,10 @@
               <option value="">— Sélectionner</option>
               <option>Conception &amp; Préparation</option>
               <option>Tournage — Personnel</option>
-              <option>Déplacements &amp; Logement</option>
-              <option>Matériel</option>
+              <option>Déplacements &amp; Transport</option>
+              <option>Logement</option>
+              <option>Repas</option>
+              <option>Matériel &amp; Location décor</option>
               <option>Post-Production</option>
               <option>Assets Marketing</option>
               <option>Autre</option>
@@ -310,7 +312,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ANALYZE_URL       = `${SUPABASE_URL}/functions/v1/analyze-receipt`;
 const STORAGE_BUCKET    = 'justificatifs-frais';
 const TABLE             = 'frais_tournage';
-const CATEGORIES        = ['Conception & Préparation','Tournage — Personnel','Déplacements & Logement','Matériel','Post-Production','Assets Marketing','Autre'];
+const CATEGORIES        = ['Conception & Préparation','Tournage — Personnel','Déplacements & Transport','Logement','Repas','Matériel & Location décor','Post-Production','Assets Marketing','Autre'];
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

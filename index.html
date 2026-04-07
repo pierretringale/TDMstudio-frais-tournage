@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;1,300&family=Source+Sans+3:wght@300;400;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     :root {
       --encre: #1C1C1C; --accent: #A63020; --fond-chaud: #FBF9F7;
@@ -339,11 +340,11 @@
       </div>
     </div>
     <div class="doc-buttons">
-      <button class="btn-doc" onclick="generateNoteRemboursement()">
+      <button class="btn-doc" id="btn-note-remboursement" onclick="generateNoteRemboursement()">
         <span class="btn-doc-icon">&#128203;</span>
         <span>
           <span class="btn-doc-label">Note de remboursement de frais</span>
-          <span class="btn-doc-sub">CB perso Pierre · à imprimer ou exporter en PDF</span>
+          <span class="btn-doc-sub">CB perso Pierre · justificatifs intégrés · impression directe</span>
         </span>
       </button>
       <button class="btn-doc" onclick="generateChecklistIndy()">
@@ -536,6 +537,8 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('date_depense').valueAsDate = new Date();
   if (SUPABASE_ANON_KEY === 'REMPLACER_PAR_CLE_ANON')
     document.getElementById('config-banner').classList.add('show');
+  if (typeof pdfjsLib !== 'undefined')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 });
 
 function switchTab(tab, el) {
@@ -892,12 +895,19 @@ function buildTvaGroups(rows) {
   return grouped;
 }
 
-function generateNoteRemboursement() {
+async function generateNoteRemboursement() {
   let rows = allExpenses.filter(r => r.payeur === 'pierre_perso');
   if (docFilter !== 'all') rows = rows.filter(r => r.tournage === docFilter);
   if (!rows.length) { showToast('Aucun frais CB perso Pierre pour cette sélection', 'error'); return; }
-  const label = docFilter === 'all' ? 'Tous les tournages' : docFilter;
-  const date  = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+
+  const btn = document.getElementById('btn-note-remboursement');
+  const btnLabel = btn.querySelector('.btn-doc-label');
+  btn.disabled = true;
+
+  const label   = docFilter === 'all' ? 'Tous les tournages' : docFilter;
+  const dateStr = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+
+  // ── Tableau récap ──────────────────────────────────────────────────────────
   const grouped = buildTvaGroups(rows);
   let bodyRows = '', grandTTC = 0, grandTVA = 0, grandHT = 0;
   TVA_ORDER.forEach(t => {
@@ -915,17 +925,102 @@ function generateNoteRemboursement() {
     });
     bodyRows += `<tr class="subtotal-row"><td colspan="4">Sous-total ${TVA_LABELS[t]}</td><td class="right">${fmt(ssHT)}</td><td class="right">${fmt(ssTVA)}</td><td class="right">${fmt(ssTTC)}</td></tr>`;
   });
-  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de remboursement</title>${docStyles()}</head><body>
-  <div class="doc-header"><div><div class="brand">TDM<span>studio</span></div></div><div style="text-align:right"><div class="doc-title">Note de remboursement</div><div class="doc-meta">${label} · Établie le ${date}</div></div></div>
+
+  // ── Justificatifs ──────────────────────────────────────────────────────────
+  const withJustif = rows.filter(r => r.justificatif_url);
+  let justifSections = '';
+
+  for (let i = 0; i < withJustif.length; i++) {
+    const r = withJustif[i];
+    btnLabel.textContent = `Préparation du document [${i + 1}/${withJustif.length}]…`;
+    const url     = r.justificatif_url;
+    const ext     = url.split('?')[0].split('.').pop().toLowerCase();
+    const isImg   = ['jpg','jpeg','png','webp','gif'].includes(ext);
+    const isPdf   = ext === 'pdf';
+    const header  = `<div class="justif-header">
+      <span class="justif-num">Justificatif ${i + 1}/${withJustif.length}</span>
+      <span class="justif-desc">${r.description}</span>
+      <span class="justif-meta">${r.date_depense} · ${fmt(r.montant)}</span>
+    </div>`;
+    let content = '';
+
+    if (isImg) {
+      try {
+        const blob    = await (await fetch(url)).blob();
+        const dataUrl = await blobToDataUrl(blob);
+        content = `<img src="${dataUrl}" class="justif-img">`;
+      } catch {
+        content = `<p class="justif-error">Image non chargeable — <a href="${url}" class="justif-link">ouvrir l'original</a></p>`;
+      }
+    } else if (isPdf) {
+      try {
+        const pdfDoc = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+        const pageImgs = [];
+        for (let p = 1; p <= pdfDoc.numPages; p++) {
+          const page = await pdfDoc.getPage(p);
+          const vp   = page.getViewport({ scale: 1.8 });
+          const canvas = document.createElement('canvas');
+          canvas.width = vp.width; canvas.height = vp.height;
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+          pageImgs.push(canvas.toDataURL('image/png'));
+        }
+        content = pageImgs.map((d, idx) =>
+          `${idx > 0 ? '<div class="pdf-page-break"></div>' : ''}<img src="${d}" class="justif-img">`
+        ).join('');
+      } catch {
+        content = `<p class="justif-error">PDF non rendu — <a href="${url}" class="justif-link">ouvrir l'original</a></p>`;
+      }
+    } else {
+      content = `<p class="justif-error"><a href="${url}" class="justif-link">Ouvrir le justificatif</a></p>`;
+    }
+    justifSections += `<div class="page-break"><div class="justif-page">${header}${content}</div></div>`;
+  }
+
+  // ── Génération du document final ───────────────────────────────────────────
+  const extraStyles = `
+    .page-break { page-break-before: always; }
+    .pdf-page-break { page-break-before: always; height: 1px; }
+    .justif-page { padding-top: 16px; }
+    .justif-header { display:flex; align-items:baseline; gap:12px; border-bottom:2px solid #A63020; padding-bottom:10px; margin-bottom:20px; flex-wrap:wrap; }
+    .justif-num  { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#A63020; text-transform:uppercase; white-space:nowrap; }
+    .justif-desc { font-family:'Source Sans 3',sans-serif; font-size:14px; font-weight:600; flex:1; min-width:120px; }
+    .justif-meta { font-family:'DM Mono',monospace; font-size:11px; color:#767676; white-space:nowrap; }
+    .justif-img  { width:100%; height:auto; display:block; }
+    .justif-error{ font-family:'DM Mono',monospace; font-size:10px; color:#767676; padding:20px; background:#F5F0EC; text-align:center; }
+    .justif-link { color:#A63020; }
+    @media print {
+      canvas { width:100% !important; height:auto !important; page-break-inside:avoid; }
+      .page-break { page-break-before:always; }
+      .pdf-page-break { page-break-before:always; }
+      .justif-img { width:100% !important; height:auto !important; page-break-inside:avoid; }
+      .no-print { display:none; }
+    }`;
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Note de remboursement</title>${docStyles()}<style>${extraStyles}</style></head><body>
+  <div class="doc-header"><div><div class="brand">TDM<span>studio</span></div></div><div style="text-align:right"><div class="doc-title">Note de remboursement</div><div class="doc-meta">${label} · Établie le ${dateStr}</div></div></div>
   <p class="doc-meta" style="margin-bottom:8px">Bénéficiaire : Pierre · CB personnelle · Frais avancés à rembourser</p>
   <table>
     <thead><tr><th>Date</th><th>Description</th><th>Catégorie</th><th>Tournage</th><th class="right">HT</th><th class="right">TVA</th><th class="right">TTC</th></tr></thead>
     <tbody>${bodyRows}<tr class="grand-total-row"><td colspan="4">Total à rembourser</td><td class="right">${fmt(grandHT)}</td><td class="right">${fmt(grandTVA)}</td><td class="right">${fmt(grandTTC)}</td></tr></tbody>
   </table>
-  <div class="footer" style="margin-top:40px">Signature / Date de remboursement : ___________________________</div>
+  <div class="footer" style="margin-top:32px">Signature / Date de remboursement : ___________________________</div>
   <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1C1C1C;color:#fff;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer">Imprimer / Exporter PDF</button>
+  ${justifSections}
   </body></html>`;
-  const w = window.open('', '_blank'); w.document.write(html); w.document.close();
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { try { w.print(); } catch(e) {} }, 1000);
+
+  btn.disabled = false;
+  btnLabel.textContent = 'Note de remboursement de frais';
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob);
+  });
 }
 
 function generateChecklistIndy() {

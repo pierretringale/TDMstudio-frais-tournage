@@ -114,6 +114,24 @@
     .btn-doc-sub { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.1em; margin-top: 3px; display: block; }
     .doc-filter { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
     .doc-filter-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--gris-sec); letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
+    #modal-overlay { display:none; position:fixed; inset:0; background:rgba(28,28,28,0.55); z-index:200; align-items:center; justify-content:center; padding:20px; }
+    #modal-overlay.show { display:flex; }
+    #modal { background:var(--blanc); width:100%; max-width:560px; max-height:90vh; overflow-y:auto; display:flex; flex-direction:column; }
+    .modal-header { display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid var(--separateur); position:sticky; top:0; background:var(--blanc); z-index:1; }
+    .modal-title { font-family:'Spectral',serif; font-size:18px; font-weight:400; color:var(--encre); }
+    .modal-close { background:none; border:none; font-size:16px; cursor:pointer; color:var(--gris-sec); line-height:1; padding:4px; }
+    .modal-close:hover { color:var(--accent); }
+    .modal-body { padding:24px; flex:1; }
+    .modal-justif-zone { border:1px solid var(--separateur); padding:16px; min-height:64px; display:flex; align-items:center; justify-content:center; background:var(--gris-leger); margin-bottom:8px; }
+    .modal-justif-zone img { max-width:100%; max-height:200px; object-fit:contain; }
+    .modal-footer { display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-top:3px solid var(--separateur); position:sticky; bottom:0; background:var(--blanc); gap:8px; }
+    .modal-btn-delete { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.12em; text-transform:uppercase; padding:10px 16px; border:1px solid var(--accent); background:none; color:var(--accent); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+    .modal-btn-delete:hover { background:var(--accent); color:var(--blanc); }
+    .modal-btn-cancel { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.12em; text-transform:uppercase; padding:10px 16px; border:1px solid var(--separateur); background:none; color:var(--gris-sec); cursor:pointer; transition:all 0.15s; }
+    .modal-btn-cancel:hover { border-color:var(--encre); color:var(--encre); }
+    .modal-btn-save { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.12em; text-transform:uppercase; padding:10px 20px; border:none; background:var(--encre); color:var(--blanc); cursor:pointer; transition:background 0.15s; }
+    .modal-btn-save:hover { background:var(--accent); }
+    .modal-btn-save:disabled { background:var(--gris-sec); cursor:not-allowed; }
     @media (max-width: 520px) {
       .summary-grid { grid-template-columns: 1fr 1fr; }
       .form-row.two { grid-template-columns: 1fr; }
@@ -314,6 +332,102 @@
 
 <div class="toast" id="toast"></div>
 
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div id="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">Modifier le frais</span>
+      <button class="modal-close" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:20px">
+        <label>Justificatif actuel</label>
+        <div id="modal-justif" class="modal-justif-zone"></div>
+        <div class="upload-zone" style="padding:16px;margin-top:8px">
+          <input type="file" accept="image/*,application/pdf" onchange="handleModalFileSelect(this)" capture="environment">
+          <div class="upload-text" id="modal-upload-text" style="font-size:12px">Remplacer le justificatif</div>
+          <div class="upload-filename" id="modal-filename"></div>
+          <img id="modal-preview" class="upload-preview" style="display:none">
+        </div>
+      </div>
+      <div class="form-row two">
+        <div class="form-group">
+          <label for="modal-tournage">Tournage</label>
+          <select id="modal-tournage">
+            <option value="T-01">T-01 · Nancy</option>
+            <option value="T-02">T-02 · Lyon</option>
+            <option value="T-03">T-03 · Lyon</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="modal-date">Date</label>
+          <input type="date" id="modal-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="modal-categorie">Catégorie</label>
+          <select id="modal-categorie">
+            <option>Conception &amp; Préparation</option>
+            <option>Tournage — Personnel</option>
+            <option>Déplacements &amp; Transport</option>
+            <option>Logement</option>
+            <option>Repas</option>
+            <option>Matériel &amp; Location décor</option>
+            <option>Post-Production</option>
+            <option>Assets Marketing</option>
+            <option>Autre</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="modal-description">Description</label>
+          <input type="text" id="modal-description">
+        </div>
+      </div>
+      <div class="form-row two">
+        <div class="form-group">
+          <label>Montant TTC</label>
+          <div class="montant-wrapper">
+            <input type="number" id="modal-montant" step="0.01" min="0.01" inputmode="decimal">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="modal-statut">Statut</label>
+          <select id="modal-statut">
+            <option value="traite">Traité (Indy)</option>
+            <option value="remboursement_en_attente">À rembourser</option>
+            <option value="rembourse">Remboursé</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Payé par</label>
+          <div class="payeur-grid">
+            <div class="payeur-pill modal-payeur-pill" id="modal-pill-indy_cb" onclick="selectModalPayeur('indy_cb')">
+              <label class="payeur-pill-label"><span class="payeur-pill-name">CB Indy</span><span class="payeur-pill-sub">Compte pro</span></label>
+            </div>
+            <div class="payeur-pill modal-payeur-pill" id="modal-pill-indy_virement" onclick="selectModalPayeur('indy_virement')">
+              <label class="payeur-pill-label"><span class="payeur-pill-name">Virement Indy</span><span class="payeur-pill-sub">Compte pro</span></label>
+            </div>
+            <div class="payeur-pill modal-payeur-pill pill-pierre-wide" id="modal-pill-pierre_perso" onclick="selectModalPayeur('pierre_perso')">
+              <label class="payeur-pill-label"><span class="payeur-pill-name">CB perso Pierre</span><span class="payeur-pill-sub">À rembourser · note de frais</span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn-delete" onclick="deleteExpense()">&#128465; Supprimer</button>
+      <div style="display:flex;gap:8px">
+        <button class="modal-btn-cancel" onclick="closeModal()">Fermer</button>
+        <button class="modal-btn-save" id="modal-save-btn" onclick="saveEdit()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL      = 'https://eqlofgcravaihvfaysdb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxbG9mZ2NyYXZhaWh2ZmF5c2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MzMyODIsImV4cCI6MjA4NjUwOTI4Mn0.rOG3bc5V-oo5BfMskHduohT1GOzyEi_Kf_UJSR18gRo';
@@ -482,9 +596,9 @@ function renderExpenses() {
   list.innerHTML = filtered.map(r => {
     const p = pc[r.payeur] || { l: r.payeur, c: 'pill-indy' };
     const pending = r.statut === 'remboursement_en_attente';
-    const link = r.justificatif_url ? ` <a href="${r.justificatif_url}" target="_blank" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--accent);text-decoration:none;">&#128206;</a>` : '';
-    const rembBtn = (pending && r.payeur === 'pierre_perso') ? `<button class="btn-rembourse" onclick="marquerRembourse('${r.id}')">Marquer remboursé</button>` : '';
-    return `<div class="expense-row"><div class="cell-mono" style="font-size:11px">${r.tournage}</div><div><span class="cell">${r.description}${link}</span><span class="cell-sub">${r.categorie} · ${r.date_depense}</span></div><div><span class="pill ${p.c}">${p.l}</span></div><div class="cell-mono">${fmt(r.montant)}</div><div class="status-cell" style="flex-direction:column;align-items:flex-start"><div><span class="dot ${pending?'dot-pending':'dot-ok'}"></span>${pending?'À rembourser':'Remboursé'}</div>${rembBtn}</div></div>`;
+    const link = r.justificatif_url ? ` <a href="${r.justificatif_url}" target="_blank" onclick="event.stopPropagation()" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--accent);text-decoration:none;">&#128206;</a>` : '';
+    const rembBtn = (pending && r.payeur === 'pierre_perso') ? `<button class="btn-rembourse" onclick="event.stopPropagation();marquerRembourse('${r.id}')">Marquer remboursé</button>` : '';
+    return `<div class="expense-row" onclick="openEditModal('${r.id}')" style="cursor:pointer"><div class="cell-mono" style="font-size:11px">${r.tournage}</div><div><span class="cell">${r.description}${link}</span><span class="cell-sub">${r.categorie} · ${r.date_depense}</span></div><div><span class="pill ${p.c}">${p.l}</span></div><div class="cell-mono">${fmt(r.montant)}</div><div class="status-cell" style="flex-direction:column;align-items:flex-start"><div><span class="dot ${pending?'dot-pending':'dot-ok'}"></span>${pending?'À rembourser':'Remboursé'}</div>${rembBtn}</div></div>`;
   }).join('');
 }
 
@@ -499,6 +613,122 @@ async function marquerRembourse(id) {
   const { error } = await sb.from(TABLE).update({ statut: 'rembourse' }).eq('id', id);
   if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
   showToast('Frais marqué comme remboursé ✓', 'success');
+  await loadExpenses();
+}
+
+// ── Modale édition ─────────────────────────────────────────────────────────
+let editingId = null, modalSelectedFile = null, modalSelectedPayeur = null;
+
+function openEditModal(id) {
+  const r = allExpenses.find(e => e.id === id);
+  if (!r) return;
+  editingId = id; modalSelectedFile = null;
+
+  // Justificatif preview
+  const justifEl = document.getElementById('modal-justif');
+  if (r.justificatif_url) {
+    const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(r.justificatif_url);
+    justifEl.innerHTML = isImg
+      ? `<img src="${r.justificatif_url}" style="max-width:100%;max-height:200px;object-fit:contain;">`
+      : `<a href="${r.justificatif_url}" target="_blank" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);">&#128196; Ouvrir le PDF</a>`;
+  } else {
+    justifEl.innerHTML = `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gris-sec);letter-spacing:0.1em;">Aucun justificatif</span>`;
+  }
+
+  // Champs formulaire
+  document.getElementById('modal-tournage').value    = r.tournage      || '';
+  document.getElementById('modal-date').value        = r.date_depense  || '';
+  document.getElementById('modal-categorie').value   = r.categorie     || '';
+  document.getElementById('modal-description').value = r.description   || '';
+  document.getElementById('modal-montant').value     = r.montant != null ? parseFloat(r.montant).toFixed(2) : '';
+  document.getElementById('modal-statut').value      = r.statut        || 'traite';
+
+  // Payeur pills
+  modalSelectedPayeur = r.payeur;
+  document.querySelectorAll('.modal-payeur-pill').forEach(p => p.classList.remove('selected'));
+  const pp = document.getElementById('modal-pill-' + r.payeur);
+  if (pp) pp.classList.add('selected');
+
+  // Reset upload
+  document.getElementById('modal-filename').textContent = '';
+  document.getElementById('modal-upload-text').textContent = 'Remplacer le justificatif';
+  document.getElementById('modal-preview').style.display = 'none';
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = false; btn.textContent = 'Enregistrer';
+
+  document.getElementById('modal-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+  document.body.style.overflow = '';
+  editingId = null; modalSelectedFile = null; modalSelectedPayeur = null;
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+function selectModalPayeur(val) {
+  modalSelectedPayeur = val;
+  document.querySelectorAll('.modal-payeur-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('modal-pill-' + val).classList.add('selected');
+}
+
+function handleModalFileSelect(input) {
+  modalSelectedFile = input.files[0];
+  if (!modalSelectedFile) return;
+  document.getElementById('modal-upload-text').textContent = modalSelectedFile.name;
+  document.getElementById('modal-filename').textContent = modalSelectedFile.name;
+  if (modalSelectedFile.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => { const p = document.getElementById('modal-preview'); p.src = e.target.result; p.style.display = 'block'; };
+    reader.readAsDataURL(modalSelectedFile);
+  }
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  if (!modalSelectedPayeur) { showToast('Sélectionne un payeur', 'error'); return; }
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+  let justificatif_url = allExpenses.find(e => e.id === editingId)?.justificatif_url || null;
+  if (modalSelectedFile) {
+    const ext = modalSelectedFile.name.split('.').pop();
+    const fn = Date.now() + '_' + Math.random().toString(36).slice(2) + '.' + ext;
+    const { error: ue } = await sb.storage.from(STORAGE_BUCKET).upload(fn, modalSelectedFile, { contentType: modalSelectedFile.type });
+    if (ue) { showToast('Erreur upload : ' + ue.message, 'error'); btn.disabled = false; btn.textContent = 'Enregistrer'; return; }
+    const { data: ud } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(fn);
+    justificatif_url = ud.publicUrl;
+  }
+
+  const updates = {
+    tournage:      document.getElementById('modal-tournage').value,
+    date_depense:  document.getElementById('modal-date').value,
+    categorie:     document.getElementById('modal-categorie').value,
+    description:   document.getElementById('modal-description').value,
+    montant:       parseFloat(document.getElementById('modal-montant').value),
+    payeur:        modalSelectedPayeur,
+    statut:        document.getElementById('modal-statut').value,
+    justificatif_url,
+  };
+
+  const { error } = await sb.from(TABLE).update(updates).eq('id', editingId);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); btn.disabled = false; btn.textContent = 'Enregistrer'; return; }
+  showToast('Frais modifié ✓', 'success');
+  closeModal();
+  await loadExpenses();
+}
+
+async function deleteExpense() {
+  if (!editingId) return;
+  if (!confirm('Supprimer ce frais définitivement ?')) return;
+  const { error } = await sb.from(TABLE).delete().eq('id', editingId);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Frais supprimé', 'success');
+  closeModal();
   await loadExpenses();
 }
 

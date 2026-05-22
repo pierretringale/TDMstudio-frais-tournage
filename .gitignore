@@ -1,0 +1,24 @@
+# Bundle wireframes Claude Design (référence locale, ne jamais commit)
+design-handoff/
+
+# Variables d'environnement
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editeurs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dépendances
+node_modules/

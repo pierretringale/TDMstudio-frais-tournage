@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#ff1f6d" />
+  <meta name="description" content="Galactus — Outil compta interne TDM studio + vu.media" />
+
+  <title>Galactus</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Galactus" />
+
+  <!-- Google Fonts (Inter / Big Shoulders Display / JetBrains Mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Big+Shoulders+Display:wght@700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+
+  <!-- Tailwind CDN (warning prod accepté MVP — voir PROJET_galactus.md ERREURS CONNUES) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: '#fffdf6',
+            soft: '#fbf8ec',
+            fill: '#f4f0de',
+            rule: '#d9d4be',
+            faint: '#a6a18a',
+            mid: '#6f6b58',
+            ink: '#1e1d18',
+            void: '#0a0a1f',
+            cosmos: '#050513',
+            accent: '#ff1f6d',
+            'accent-soft': '#ff5f9c',
+            hot: '#ff4d3d',
+            violet: '#8b3dff',
+            cyan: '#00d4ff',
+            gold: '#ffc857',
+            orange: '#ff8c42',
+            green: '#00e676',
+            amber: '#ffb300',
+            red: '#ff3838',
+            blue: '#3b82f6',
+            yellow: '#fde047',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['"Big Shoulders Display"', 'Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          boxShadow: {
+            'glow-accent': '0 0 14px #ff1f6daa, 0 0 30px #8b3dff66',
+          },
+          backgroundImage: {
+            nebula:
+              'radial-gradient(ellipse at 20% 10%, rgba(139,61,255,0.35) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(255,31,109,0.30) 0%, transparent 55%), radial-gradient(ellipse at 50% 50%, rgba(0,212,255,0.15) 0%, transparent 60%), linear-gradient(180deg, #050513 0%, #0a0a1f 100%)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- CSS Galactus (variables, nebula, badges, animations) -->
+  <link rel="stylesheet" href="css/galactus.css" />
+
+  <!-- Supabase UMD (window.supabase) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Config Galactus (injectée AVANT app.js) -->
+  <script>
+    window.GALACTUS_CONFIG = {
+      SUPABASE_URL: 'https://eqlofgcravaihvfaysdb.supabase.co',
+      SUPABASE_ANON_KEY: 'sb_publishable_VVk6FxIPWh5dNDgVAAVf1Q_3n5mE-B2'
+    };
+  </script>
+
+  <!-- App modules ES (app.js importe utils.js + supabase.js) -->
+  <script type="module" src="js/app.js"></script>
+
+  <!-- Alpine.js (defer assure exécution après app.js qui définit window.app) -->
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+</head>
+
+<body x-data="app()" x-init="init()" x-cloak class="bg-paper text-ink min-h-screen">
+
+  <!-- ====================================================================== -->
+  <!-- === LOGIN OVERLAY (visible si !isAuthed) =============================== -->
+  <!-- ====================================================================== -->
+  <div x-show="!isAuthed" x-transition.opacity
+       class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
+    <div class="absolute inset-0 nebula-gradient"></div>
+    <div class="absolute inset-0 star-field opacity-50 pointer-events-none"></div>
+
+    <div class="relative bg-paper border-2 border-ink rounded-lg p-7 w-[360px] max-w-[92vw] shadow-2xl">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-11 h-11 rounded-full logo-halo accent-glow"></div>
+        <div>
+          <div class="font-display font-black text-[28px] leading-none uppercase">GALACTUS</div>
+          <div class="font-mono text-[8px] uppercase tracking-widest text-orange mt-1">Dévoreur de factures</div>
+        </div>
+      </div>
+
+      <form @submit.prevent="login()" class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Email</label>
+          <input x-model="loginEmail" type="email" autocomplete="email" required
+                 class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Mot de passe</label>
+          <input x-model="loginPassword" type="password" autocomplete="current-password" required
+                 class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+        </div>
+
+        <div x-show="loginError" x-text="loginError"
+             class="text-red text-xs font-mono"></div>
+
+        <button type="submit" :disabled="loading"
+                class="bg-gradient-to-b from-hot to-accent text-white font-bold uppercase tracking-wider px-5 py-3 rounded shadow-glow-accent border-[1.5px] border-ink mt-2 disabled:opacity-50">
+          <span x-show="!loading">Se connecter</span>
+          <span x-show="loading">Connexion…</span>
+        </button>
+      </form>
+
+      <div class="mt-4 font-mono text-[9px] text-faint text-center uppercase tracking-wider">
+        Compte Pierre unique · MVP single-user
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================== -->
+  <!-- === APP (visible si isAuthed) ========================================== -->
+  <!-- ====================================================================== -->
+  <div x-show="isAuthed" x-cloak class="min-h-screen">
+
+    <!-- ============== SIDEBAR DESKTOP (≥ md) ============== -->
+    <aside class="hidden md:flex md:flex-col md:w-[220px] md:fixed md:h-screen md:z-30 nebula-gradient relative">
+      <div class="absolute inset-0 star-field opacity-40 pointer-events-none"></div>
+
+      <div class="relative p-5">
+        <!-- Logo + brand -->
+        <div class="flex items-center gap-3 mb-8">
+          <div class="w-[22px] h-[22px] rounded-full logo-halo"></div>
+          <div>
+            <div class="font-display font-black text-[30px] leading-none text-white uppercase">GALACTUS</div>
+            <div class="font-mono text-[8px] uppercase tracking-widest text-gold mt-1">Dévoreur de factures</div>
+          </div>
+        </div>
+
+        <!-- Nav items (4) -->
+        <nav class="flex flex-col gap-1 text-left">
+          <!-- Ingestion -->
+          <button @click="navigate('ingestion')"
+                  :class="currentView === 'ingestion' ? 'bg-gradient-to-r from-accent/30 to-transparent border-l-4 border-accent' : 'border-l-4 border-transparent hover:bg-white/5'"
+                  class="px-3 py-3 transition-colors">
+            <div class="flex items-center justify-between">
+              <span class="font-display font-bold text-base text-white uppercase">Ingestion</span>
+              <span x-show="currentView === 'ingestion'" class="w-2 h-2 rounded-full bg-accent accent-glow"></span>
+            </div>
+            <div class="font-mono text-[9px] text-faint uppercase tracking-wider mt-0.5">Photo · Fichier · Batch</div>
+          </button>
+
+          <!-- Dashboard -->
+          <button @click="navigate('dashboard')"
+                  :class="currentView === 'dashboard' ? 'bg-gradient-to-r from-accent/30 to-transparent border-l-4 border-accent' : 'border-l-4 border-transparent hover:bg-white/5'"
+                  class="px-3 py-3 transition-colors">
+            <div class="flex items-center justify-between">
+              <span class="font-display font-bold text-base text-white uppercase">Dashboard</span>
+              <span x-show="currentView === 'dashboard'" class="w-2 h-2 rounded-full bg-accent accent-glow"></span>
+            </div>
+            <div class="font-mono text-[9px] text-faint uppercase tracking-wider mt-0.5">Mois · Année · KPI</div>
+          </button>
+
+          <!-- Pièces -->
+          <button @click="navigate('pieces')"
+                  :class="currentView === 'pieces' ? 'bg-gradient-to-r from-accent/30 to-transparent border-l-4 border-accent' : 'border-l-4 border-transparent hover:bg-white/5'"
+                  class="px-3 py-3 transition-colors">
+            <div class="flex items-center justify-between">
+              <span class="font-display font-bold text-base text-white uppercase">Pièces</span>
+              <span x-show="currentView === 'pieces'" class="w-2 h-2 rounded-full bg-accent accent-glow"></span>
+            </div>
+            <div class="font-mono text-[9px] text-faint uppercase tracking-wider mt-0.5">Fournisseurs · NDF · Mat</div>
+          </button>
+
+          <!-- Exports -->
+          <button @click="navigate('exports')"
+                  :class="currentView === 'exports' ? 'bg-gradient-to-r from-accent/30 to-transparent border-l-4 border-accent' : 'border-l-4 border-transparent hover:bg-white/5'"
+                  class="px-3 py-3 transition-colors">
+            <div class="flex items-center justify-between">
+              <span class="font-display font-bold text-base text-white uppercase">Exports</span>
+              <span x-show="currentView === 'exports'" class="w-2 h-2 rounded-full bg-accent accent-glow"></span>
+            </div>
+            <div class="font-mono text-[9px] text-faint uppercase tracking-wider mt-0.5">Indy · NDF mois · CA3</div>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Footer user -->
+      <div class="mt-auto relative p-5">
+        <div class="flex items-center gap-2 text-white">
+          <div class="w-7 h-7 rounded-full bg-gold text-ink font-display font-black flex items-center justify-center text-sm">P</div>
+          <div class="font-mono text-[10px] text-faint truncate max-w-[140px]" x-text="user?.email || ''"></div>
+        </div>
+        <button @click="logout()"
+                class="mt-2 text-[10px] font-mono text-mid hover:text-white uppercase tracking-wider">Déconnexion</button>
+      </div>
+    </aside>
+
+    <!-- ============== TAB BAR MOBILE (< md) ============== -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-paper border-t-2 border-ink flex items-center justify-around px-2 py-2"
+         style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
+
+      <!-- Dashboard -->
+      <button @click="navigate('dashboard')" class="flex flex-col items-center gap-1 px-3 py-1">
+        <div class="w-[22px] h-[22px] rounded-sm border-2 border-ink flex items-center justify-center">
+          <div class="w-[10px] h-[10px] bg-ink rounded-[1px]"></div>
+        </div>
+        <span class="font-mono text-[9px] uppercase tracking-wider"
+              :class="currentView === 'dashboard' ? 'text-accent font-bold' : 'text-mid'">Dashboard</span>
+      </button>
+
+      <!-- Ingestion (PILL PROÉMINENT) -->
+      <button @click="navigate('ingestion')" class="flex flex-col items-center gap-1 px-3 py-1">
+        <div class="w-[36px] h-[22px] rounded-full bg-gradient-to-b from-hot to-accent border-2 border-ink shadow-glow-accent flex items-center justify-center">
+          <span class="text-white text-[10px] font-black leading-none">+</span>
+        </div>
+        <span class="font-mono text-[9px] uppercase tracking-wider font-bold"
+              :class="currentView === 'ingestion' ? 'text-accent' : 'text-ink'">Ingestion</span>
+      </button>
+
+      <!-- Pièces -->
+      <button @click="navigate('pieces')" class="flex flex-col items-center gap-1 px-3 py-1">
+        <div class="w-[22px] h-[22px] rounded-sm border-2 border-ink grid grid-cols-2 gap-[1px] p-[2px]">
+          <div class="bg-ink"></div><div class="bg-ink"></div>
+          <div class="bg-ink"></div><div class="bg-ink"></div>
+        </div>
+        <span class="font-mono text-[9px] uppercase tracking-wider"
+              :class="currentView === 'pieces' ? 'text-accent font-bold' : 'text-mid'">Pièces</span>
+      </button>
+
+      <!-- Exports -->
+      <button @click="navigate('exports')" class="flex flex-col items-center gap-1 px-3 py-1">
+        <div class="w-[22px] h-[22px] rounded-sm border-2 border-ink flex items-end justify-center pb-[2px]">
+          <div class="w-[10px] h-[2px] bg-ink"></div>
+        </div>
+        <span class="font-mono text-[9px] uppercase tracking-wider"
+              :class="currentView === 'exports' ? 'text-accent font-bold' : 'text-mid'">Exports</span>
+      </button>
+    </nav>
+
+    <!-- ============== MAIN CONTENT (4 vues + démo) ============== -->
+    <main class="md:ml-[220px] min-h-screen pb-24 md:pb-8">
+
+      <!-- =================== VUE INGESTION =================== -->
+      <template x-if="currentView === 'ingestion'">
+        <section class="p-5 md:p-8 max-w-5xl">
+          <header class="mb-6">
+            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">INGESTION</h1>
+            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Sprint 2 — Photo · Fichier · Batch upload</p>
+          </header>
+          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
+            <span class="font-mono text-mid uppercase text-sm">Vue Ingestion · à venir Sprint 2</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- =================== VUE DASHBOARD =================== -->
+      <template x-if="currentView === 'dashboard'">
+        <section class="p-5 md:p-8 max-w-5xl">
+          <header class="mb-6">
+            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">DASHBOARD</h1>
+            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">MAI 2026 · J22/31 — Sprint 3</p>
+          </header>
+          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
+            <span class="font-mono text-mid uppercase text-sm">KPI mensuels · à venir Sprint 3</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- =================== VUE PIÈCES =================== -->
+      <template x-if="currentView === 'pieces'">
+        <section class="p-5 md:p-8 max-w-7xl">
+          <header class="mb-6">
+            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">PIÈCES</h1>
+            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Sprint 3 — Filtres · Édition · Export ZIP</p>
+          </header>
+          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
+            <span class="font-mono text-mid uppercase text-sm">Tableau pièces · à venir Sprint 3</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- =================== VUE EXPORTS =================== -->
+      <template x-if="currentView === 'exports'">
+        <section class="p-5 md:p-8 max-w-5xl">
+          <header class="mb-6">
+            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">EXPORTS</h1>
+            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Sprint 4 — Indy · NDF mois · Pré-CA3</p>
+          </header>
+          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
+            <span class="font-mono text-mid uppercase text-sm">Workflows export · à venir Sprint 4</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- =================== PAGE DÉMO (cachée, #/_demo) =================== -->
+      <template x-if="currentView === '_demo'">
+        <section class="p-5 md:p-8 max-w-7xl">
+          <header class="mb-8">
+            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">DESIGN SYSTEM</h1>
+            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Page démo cachée — vérification visuelle composants vs maquettes Claude Design</p>
+          </header>
+
+          <!-- === 1. TYPOGRAPHIE === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">1 · Typographie</h2>
+            <div class="grid gap-2 text-sm">
+              <div class="font-sans font-normal">Inter 400 — The quick brown fox jumps over the lazy dog</div>
+              <div class="font-sans font-medium">Inter 500 — The quick brown fox</div>
+              <div class="font-sans font-semibold">Inter 600 — The quick brown fox</div>
+              <div class="font-sans font-bold">Inter 700 — The quick brown fox</div>
+              <div class="font-sans font-extrabold">Inter 800 — The quick brown fox</div>
+              <div class="font-sans font-black">Inter 900 — The quick brown fox</div>
+              <div class="font-display font-bold text-xl uppercase">Big Shoulders Display 700 — Display Headline</div>
+              <div class="font-display font-extrabold text-xl uppercase">Big Shoulders Display 800 — Display Headline</div>
+              <div class="font-display font-black text-2xl uppercase">Big Shoulders Display 900 — Display Headline</div>
+              <div class="font-mono text-sm">JetBrains Mono 400 — 0123456789 ABCabc_,.</div>
+              <div class="font-mono text-sm font-medium">JetBrains Mono 500 — 0123456789 ABCabc</div>
+              <div class="font-mono text-sm font-bold">JetBrains Mono 700 — 0123456789 ABCabc</div>
+            </div>
+          </div>
+
+          <!-- === 2. PALETTE === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">2 · Palette (20 couleurs)</h2>
+            <div class="grid grid-cols-4 md:grid-cols-7 gap-3">
+              <template x-for="c in [
+                ['paper','#fffdf6'],['soft','#fbf8ec'],['fill','#f4f0de'],['rule','#d9d4be'],
+                ['faint','#a6a18a'],['mid','#6f6b58'],['ink','#1e1d18'],['void','#0a0a1f'],['cosmos','#050513'],
+                ['accent','#ff1f6d'],['accent-soft','#ff5f9c'],['hot','#ff4d3d'],['violet','#8b3dff'],
+                ['cyan','#00d4ff'],['gold','#ffc857'],['orange','#ff8c42'],
+                ['green','#00e676'],['amber','#ffb300'],['red','#ff3838'],['blue','#3b82f6'],['yellow','#fde047']
+              ]" :key="c[0]">
+                <div class="flex flex-col">
+                  <div class="h-14 rounded border border-rule" :style="`background-color:${c[1]}`"></div>
+                  <span class="font-mono text-[10px] mt-1" x-text="c[0]"></span>
+                  <span class="font-mono text-[9px] text-mid" x-text="c[1]"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- === 3. BADGES CATÉGORIES === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">3 · Badges catégories (5)</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-cat-fournisseur">Fournisseur</span>
+              <span class="badge badge-cat-ndf">NDF</span>
+              <span class="badge badge-cat-materiel">Matériel</span>
+              <span class="badge badge-cat-ndf-mois">NDF Mois</span>
+              <span class="badge badge-cat-vente">Vente</span>
+            </div>
+          </div>
+
+          <!-- === 4. BADGES ACTIVITÉS === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">4 · Badges activités (3)</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-act-tdm">TDM</span>
+              <span class="badge badge-act-vum">VUM</span>
+              <span class="badge badge-act-mix">MIX</span>
+            </div>
+          </div>
+
+          <!-- === 5. BADGES STATUTS === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">5 · Badges statuts (5)</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-status-a_traiter">À traiter</span>
+              <span class="badge badge-status-traite">Traité</span>
+              <span class="badge badge-status-uploade_indy">Uploadé Indy</span>
+              <span class="badge badge-status-consolide_dans_ndf_mois">Consolidé NDF mois</span>
+              <span class="badge badge-status-archive">Archive</span>
+            </div>
+          </div>
+
+          <!-- === 6. BADGES CONFIDENCE === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">6 · Badges confidence (Sprint 2 OCR)</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-conf-low">conf 42 %</span>
+              <span class="badge badge-conf-mid">conf 67 %</span>
+              <span class="badge badge-conf-high">conf 94 %</span>
+            </div>
+          </div>
+
+          <!-- === 7. BOUTONS === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">7 · Boutons</h2>
+            <div class="flex flex-wrap gap-3 items-center">
+              <button class="border-[1.5px] border-ink text-ink font-bold uppercase tracking-wider px-4 py-2 rounded text-sm">Btn</button>
+              <button class="border-[1.5px] border-ink text-ink font-bold uppercase tracking-wider px-4 py-2 rounded text-sm hover:bg-soft">Btn hover</button>
+              <button disabled class="border-[1.5px] border-faint text-faint font-bold uppercase tracking-wider px-4 py-2 rounded text-sm opacity-60 cursor-not-allowed">Btn disabled</button>
+              <button class="bg-gradient-to-b from-hot to-accent text-white font-bold uppercase tracking-wider px-5 py-3 rounded shadow-glow-accent border-[1.5px] border-ink text-sm">Accent Btn</button>
+              <button class="text-ink font-bold uppercase tracking-wider px-4 py-2 text-sm hover:text-accent">Btn ghost</button>
+              <button class="bg-ink text-paper font-bold uppercase tracking-wider px-4 py-2 rounded text-sm">Btn primary</button>
+            </div>
+          </div>
+
+          <!-- === 8. FILTER CHIPS === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">8 · Filter chips</h2>
+            <div class="flex flex-wrap gap-2">
+              <span class="font-mono text-xs uppercase tracking-wider px-3 py-1 rounded-full border border-rule text-mid">Tous</span>
+              <span class="font-mono text-xs uppercase tracking-wider px-3 py-1 rounded-full border border-ink text-ink">TDM</span>
+              <span class="font-mono text-xs uppercase tracking-wider px-3 py-1 rounded-full bg-gradient-to-b from-hot to-accent text-white border border-ink shadow-glow-accent">VUM</span>
+              <span class="font-mono text-xs uppercase tracking-wider px-3 py-1 rounded-full border border-ink text-ink">MIX <span class="ml-1 text-faint">14</span></span>
+            </div>
+          </div>
+
+          <!-- === 9. FIELDS === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">9 · Fields</h2>
+            <div class="grid md:grid-cols-2 gap-4 max-w-2xl">
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Empty</label>
+                <input placeholder="Nom du fournisseur" class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Valeur</label>
+                <input value="Hôtel du Nord" class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Avec slug auto</label>
+                <input value="Hôtel du Nord" class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper" />
+                <span class="font-mono text-[10px] text-faint">→ hotel-du-nord</span>
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-mono uppercase tracking-wider text-red">Erreur</label>
+                <input value="invalide" class="border-[1.5px] border-red rounded-sm px-3 py-2 font-mono text-sm bg-paper" />
+                <span class="font-mono text-[10px] text-red">Format attendu : YYYY-MM-DD</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 10. KPI CARDS === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">10 · KPI cards</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="border border-rule rounded-md p-4 bg-paper">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">Total dépenses mai</div>
+                <div class="kpi-value text-5xl mt-1">3 480 €</div>
+                <div class="font-mono text-[10px] text-green mt-1">▲ +12 % vs avril</div>
+              </div>
+              <div class="border-[1.5px] border-ink rounded-md p-4 bg-paper relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-16 h-16 bg-accent/10 rounded-bl-full"></div>
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">Pièces à traiter</div>
+                <div class="kpi-value text-5xl mt-1 text-accent">14</div>
+                <div class="font-mono text-[10px] text-mid mt-1">→ workflow OCR</div>
+              </div>
+              <div class="border-[1.5px] border-gold rounded-md p-4 bg-gold/10">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">CA TDM Q2</div>
+                <div class="kpi-value text-6xl mt-1">12,4 K€</div>
+                <div class="font-mono text-[10px] text-amber mt-1">▼ -3 %</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 11. BOX === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">11 · Box</h2>
+            <div class="grid md:grid-cols-3 gap-4">
+              <div class="border border-rule rounded-md p-4 bg-paper">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid mb-2">Box vide</div>
+                <div class="text-sm text-faint italic">Aucun contenu</div>
+              </div>
+              <div class="border border-rule rounded-md p-4 bg-paper">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid mb-2">Box avec contenu</div>
+                <div class="text-sm">14 pièces uploadées en mai 2026</div>
+              </div>
+              <div class="border border-rule border-l-4 border-l-accent rounded-md p-4 bg-paper">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-accent mb-2">Box accent</div>
+                <div class="text-sm">Refacturation internet 24 €</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 12. PLACEHOLDER STRIPED === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">12 · Placeholder striped</h2>
+            <div class="grid md:grid-cols-3 gap-4">
+              <div class="placeholder-striped h-20 flex items-center justify-center font-mono text-[10px] uppercase text-mid">Small</div>
+              <div class="placeholder-striped h-32 flex items-center justify-center font-mono text-[10px] uppercase text-mid">Medium</div>
+              <div class="placeholder-striped h-48 flex items-center justify-center font-mono text-[10px] uppercase text-mid">Large</div>
+            </div>
+          </div>
+
+          <!-- === 13. BANNIÈRE NEBULA === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">13 · Bannière nebula</h2>
+            <div class="nebula-gradient rounded-lg p-6 relative overflow-hidden">
+              <div class="absolute inset-0 star-field opacity-40 pointer-events-none"></div>
+              <div class="relative flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full logo-halo accent-glow"></div>
+                <div>
+                  <div class="font-display font-black text-2xl uppercase text-white">Sprint 1 livré</div>
+                  <div class="font-mono text-[10px] uppercase tracking-widest text-gold">UI shell · Nav · Auth · PWA</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 14. LOADER VORTEX (preview, animation Sprint 2) === -->
+          <div class="mb-10">
+            <h2 class="font-display font-black text-2xl uppercase mb-4 border-b border-rule pb-2">14 · Loader vortex (Sprint 2 OCR)</h2>
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 rounded-full nebula-gradient relative vortex-spin">
+                <div class="absolute inset-2 rounded-full bg-cosmos"></div>
+                <div class="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-accent rounded-full accent-glow"></div>
+              </div>
+              <div class="font-mono text-xs uppercase tracking-wider text-mid">Analyse OCR…</div>
+            </div>
+          </div>
+
+          <!-- Footer démo -->
+          <div class="border-t-2 border-ink pt-4 mt-12 font-mono text-[10px] uppercase tracking-wider text-mid">
+            Fin design system · galactus v0.1 · Sprint 1 · 2026-05-22
+          </div>
+        </section>
+      </template>
+    </main>
+  </div>
+
+  <!-- ====================================================================== -->
+  <!-- === TOAST STACK (global) =============================================== -->
+  <!-- ====================================================================== -->
+  <div class="fixed z-50 right-4 md:right-6 bottom-24 md:bottom-6 flex flex-col gap-2 pointer-events-none">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="toast-anim pointer-events-auto bg-paper border-2 rounded px-4 py-2 shadow-lg max-w-xs"
+           :class="{
+             'border-green': t.type === 'success',
+             'border-red': t.type === 'error',
+             'border-amber': t.type === 'warning',
+             'border-ink': t.type === 'info'
+           }">
+        <span class="font-mono text-sm" x-text="t.message"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- ====================================================================== -->
+  <!-- === SERVICE WORKER REGISTRATION ======================================== -->
+  <!-- ====================================================================== -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(() => console.log('[PWA] Service worker enregistré'))
+          .catch(err => console.error('[PWA] Échec enregistrement SW', err));
+      });
+    }
+  </script>
+
+  <!-- x-cloak (anti FOUC Alpine) -->
+  <style>[x-cloak] { display: none !important; }</style>
+</body>
+</html>

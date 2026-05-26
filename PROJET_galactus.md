@@ -4,9 +4,9 @@
 
 | Élément | État |
 |---|---|
-| Phase | Sprint 0 terminé (2026-05-22) |
-| Prochaine étape | Sprint 1 — UI shell + navigation + auth + PWA (~3h) |
-| Bloquant | Aucun (Sprint 0 verrouillé, actions manuelles Pierre soldées le 2026-05-22) |
+| Phase | Sprint 1 terminé (2026-05-22) |
+| Prochaine étape | Sprint 2 — Vue Ingestion fonctionnelle (caméra/fichier) + Edge Function analyze-receipt étendue + loader vortex + validation post-OCR (~4h) |
+| Bloquant | Aucun |
 | À NE PAS FAIRE | Pas React (Alpine.js + Tailwind seulement). Pas d'appel direct Indy (pas d'API publique). Pas multi-user. RLS hors-scope galactus mais critique en sprint sécu parallèle S23-24. Suffixe activité (TDM/VUM/MIX) obligatoire sur chaque pièce. Pas de git push pendant upload actif. 5 catégories CHECK figées (`fournisseur`, `ndf`, `materiel`, `ndf-mois`, `vente`). Charte TDM v1.1 PAS applicable, palette cosmic libre. Pas de quote-part TVA fine (Indy s'en charge). Pas de framework de composants lourd, Tailwind utility classes inline. |
 | URL | GitHub Pages temporaire (`pierretringale.github.io/galactus`) — domaine prod cible : `galactus.tdmstudio.fr` (CNAME Squarespace, Sprint 5) |
 | Repo GitHub | `pierretringale/galactus` (renommé depuis `TDMstudio-frais-tournage` le 2026-05-22) |
@@ -63,7 +63,19 @@ galactus/
 
 ## FONCTIONS / ROUTES ACTIVES
 
-À remplir Sprint 1.
+| Route / Élément | Description | État | Sprint |
+|---|---|---|---|
+| `#/ingestion` (défaut) | Vue Ingestion (placeholder striped) | 🟡 Stub | Sprint 2 |
+| `#/dashboard` | Vue Dashboard (placeholder striped) | 🟡 Stub | Sprint 3 |
+| `#/pieces` | Vue Pièces (placeholder striped) | 🟡 Stub | Sprint 3 |
+| `#/exports` | Vue Exports (placeholder striped) | 🟡 Stub | Sprint 4 |
+| `#/_demo` | Page démo Design System (cachée nav, référence visuelle pérenne) | ✅ Actif | Sprint 1 |
+| Login overlay | Auth Supabase compte Pierre unique (email + password) | ✅ Actif | Sprint 1 |
+| Sidebar desktop (≥768px) | Nebula + étoiles + halo logo + 4 nav items | ✅ Actif | Sprint 1 |
+| Tab bar mobile (<768px) | 4 entrées + Ingestion en pill magenta proéminent | ✅ Actif | Sprint 1 |
+| Service Worker | Cache shell + network-first Supabase + offline fallback HTML | ✅ Actif | Sprint 1 |
+| Manifest PWA | Installable iPhone (Add to Home Screen), standalone, theme #ff1f6d | ✅ Actif | Sprint 1 |
+| Toast system | Stack bottom-right, types info/success/error/warning, auto-dismiss 4s | ✅ Actif | Sprint 1 |
 
 ## CAS LIMITES IDENTIFIÉS
 
@@ -79,6 +91,6 @@ Voir `galactus-decisions.md` (journal append-only).
 |---|---|---|---|---|
 | 2026-05-22 | ⚠️ Wireframes affichent domaine `galactus.tdm.studio` | Source : maquettes Claude Design (`design-handoff/`). Le vrai domaine prod est `galactus.tdmstudio.fr` (cohérent `jarvis.tdmstudio.fr`). Ne pas s'aligner sur les wireframes pour ce point. | Documenté ici + dans `galactus-conventions.md`. | N/A (documentation) |
 | 2026-05-22 | 🗑️ Bucket `justificatifs-frais` à drop | Migration legacy → `galactus-input` faite Sprint 0. Bucket legacy conservé 3 mois en backup pour rollback éventuel. | À drop le **2026-08-22** si aucun rollback nécessaire. | N/A (TODO planifié) |
-| 2026-05-22 | ⚠️ Warning console Tailwind CDN attendu Sprint 1 | `cdn.tailwindcss.com should not be used in production`. Connu, accepté MVP single-user. | Documenter quand Sprint 1 lancera l'app. Migration Tailwind CLI précompilé prévue Sprint 5+ si perf devient un problème. | N/A |
+| 2026-05-22 | ⚠️ Warning console Tailwind CDN | `cdn.tailwindcss.com should not be used in production`. Connu, accepté MVP single-user (~1.5 MB charge initiale mobile, mais cache PWA absorbe après 1er load). | Documenté et présent en prod Sprint 1. Migration Tailwind CLI précompilé prévue Sprint 5+ si perf devient un problème. Voir `galactus-decisions.md` entrée 10. | N/A |
 | 2026-05-22 | ⚠️ Token GitHub `ghp_k498...` était exposé dans `.git/config` legacy | Remote HTTPS avec token embédé sur l'ancien repo. | Remote reconfigurée en SSH Sprint 0 (plus de token dans `.git/config`). **Token révoqué côté GitHub le 2026-05-22 par Pierre.** | Non |
 | 2026-05-22 | ⚠️ Advisory critique Supabase : 39 tables sans RLS | Connu depuis session pilotage. Hors-scope galactus. | Sprint sécu RLS parallèle S23-24 (brief séparé). Ne pas démarrer prod galactus sans. | N/A |

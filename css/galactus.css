@@ -1,0 +1,183 @@
+/* === GALACTUS.CSS — Styles non-Tailwind : nebula, animations, badges === */
+/* Trigger    : <link rel="stylesheet" href="css/galactus.css"> dans index.html
+   Contraintes: variables CSS dupliquées Tailwind config pour interop JS
+   Cas limites: voir docs/DESIGN.md */
+
+/* === VARIABLES CSS ROOT === */
+:root {
+  /* Palette cosmic (alignée Tailwind config inline) */
+  --paper: #fffdf6;
+  --soft: #fbf8ec;
+  --fill: #f4f0de;
+  --rule: #d9d4be;
+  --faint: #a6a18a;
+  --mid: #6f6b58;
+  --ink: #1e1d18;
+  --void: #0a0a1f;
+  --cosmos: #050513;
+
+  /* Accents */
+  --accent: #ff1f6d;
+  --accent-soft: #ff5f9c;
+  --hot: #ff4d3d;
+  --violet: #8b3dff;
+  --cyan: #00d4ff;
+  --gold: #ffc857;
+  --orange: #ff8c42;
+
+  /* Status / sémantique */
+  --green: #00e676;
+  --amber: #ffb300;
+  --red: #ff3838;
+  --blue: #3b82f6;
+  --yellow: #fde047;
+
+  /* Catégories badges (5) */
+  --cat-fournisseur: #3b82f6;
+  --cat-ndf: #ff8c42;
+  --cat-materiel: #8b3dff;
+  --cat-ndf-mois: #00d4ff;
+  --cat-vente: #ff1f6d;
+
+  /* Activités badges (3) */
+  --act-tdm: #1e1d18;
+  --act-vum: #ffc857;
+  --act-mix: #00d4ff;
+}
+
+/* === RESET LÉGER === */
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
+
+/* === NEBULA BACKGROUND === */
+.nebula-gradient {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(139, 61, 255, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(255, 31, 109, 0.30) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 212, 255, 0.15) 0%, transparent 60%),
+    linear-gradient(180deg, var(--cosmos) 0%, var(--void) 100%);
+}
+
+/* === STAR FIELD === */
+.star-field {
+  background-image:
+    radial-gradient(1.5px 1.5px at 15% 20%, white, transparent),
+    radial-gradient(1px 1px at 50% 40%, white, transparent),
+    radial-gradient(1.5px 1.5px at 75% 30%, var(--gold), transparent),
+    radial-gradient(1px 1px at 35% 70%, white, transparent),
+    radial-gradient(1.2px 1.2px at 85% 85%, var(--accent-soft), transparent);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* === ACCENT GLOW (boutons AccentBtn, logo, KPI accent) === */
+.accent-glow {
+  box-shadow:
+    0 0 14px rgba(255, 31, 109, 0.65),
+    0 0 30px rgba(139, 61, 255, 0.40),
+    0 0 50px rgba(255, 31, 109, 0.20);
+}
+
+/* === LOGO GALACTUS (halo cosmic) === */
+.logo-halo {
+  background: radial-gradient(circle at 30% 30%, var(--gold) 0%, var(--accent) 60%, var(--violet) 100%);
+  box-shadow:
+    0 0 14px rgba(255, 31, 109, 0.65),
+    0 0 30px rgba(139, 61, 255, 0.40);
+}
+
+/* === PLACEHOLDER STRIPED (vues vides en attendant Sprints 2-4) === */
+.placeholder-striped {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 8px,
+    rgba(166, 161, 138, 0.18) 8px,
+    rgba(166, 161, 138, 0.18) 16px
+  );
+  border: 1.5px dashed var(--rule);
+  border-radius: 6px;
+}
+
+/* === KPI VALUE (Big Shoulders Display 900 tabular) === */
+.kpi-value {
+  font-family: 'Big Shoulders Display', 'Inter', sans-serif;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+/* === DISPLAY FONT HELPER === */
+.font-display {
+  font-family: 'Big Shoulders Display', 'Inter', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* === ANIMATIONS === */
+@keyframes vortex-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.vortex-spin {
+  animation: vortex-spin 1.6s linear infinite;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-anim { animation: toast-in 0.18s ease-out; }
+
+/* === BADGES — STRUCTURE COMMUNE === */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  color: white;
+}
+
+/* === BADGES CATÉGORIES (5) === */
+.badge-cat-fournisseur { background-color: var(--cat-fournisseur); }
+.badge-cat-ndf         { background-color: var(--cat-ndf); }
+.badge-cat-materiel    { background-color: var(--cat-materiel); }
+.badge-cat-ndf-mois    { background-color: var(--cat-ndf-mois); color: var(--ink); }
+.badge-cat-vente       { background-color: var(--cat-vente); }
+
+/* === BADGES ACTIVITÉS (3) === */
+.badge-act-tdm { background-color: var(--act-tdm); color: white; }
+.badge-act-vum { background-color: var(--act-vum); color: var(--ink); }
+.badge-act-mix { background-color: var(--act-mix); color: var(--ink); }
+
+/* === BADGES STATUTS (5) === */
+.badge-status-a_traiter                { background-color: var(--yellow); color: var(--ink); }
+.badge-status-traite                   { background-color: #86efac;       color: var(--ink); }
+.badge-status-uploade_indy             { background-color: var(--green);   color: var(--ink); }
+.badge-status-consolide_dans_ndf_mois  { background-color: #c4b5fd;       color: var(--ink); }
+.badge-status-archive                  { background-color: #d4d4d4;       color: var(--mid); }
+
+/* === BADGES CONFIDENCE (Sprint 2 OCR) === */
+.badge-conf-low  { background-color: var(--red);   color: white; }
+.badge-conf-mid  { background-color: var(--amber); color: var(--ink); }
+.badge-conf-high { background-color: var(--green); color: var(--ink); }
+
+/* === SCROLL LOCK (modals) === */
+body.modal-open { overflow: hidden; }
+
+/* === UTILITIES SPÉCIFIQUES === */
+.tabular { font-variant-numeric: tabular-nums; }

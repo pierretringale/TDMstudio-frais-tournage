@@ -52,3 +52,35 @@ Une entrée par décision structurante. Datée. Avec **Raison** + **Conséquence
 - **Constat 2026-05-22** : la config "User Sessions" (Time-box, Inactivity timeout) est verrouillée Pro plan dans le dashboard Supabase. Sur Free, JWT access token = 1h fixé, refresh token rotating activé par défaut.
 - **Raison de l'annulation** : la lib `@supabase/supabase-js` rafraîchit automatiquement le JWT en arrière-plan tant que le refresh token est valide. Effet pratique pour Pierre = identique (pas de relogin forcé toutes les heures). Pas de valeur ajoutée à passer Pro pour ce seul réglage au stade MVP.
 - **Conséquence si on change** : si passage Pro plan futur pour d'autres raisons (volume, support), on pourra étendre Time-box session à 30j pour aligner sur le brief original. Sinon, défauts Free suffisent.
+
+---
+
+## 2026-05-22 — Décisions Sprint 1
+
+### 10. Tailwind CDN accepté en MVP, migration CLI précompilé reportée Sprint 5+
+
+- **Contexte** : le brief acte le risque "Tailwind CDN ~1.5 MB pénalise PWA mobile" et propose une migration CLI si problème en Sprint 5.
+- **Décision Sprint 1** : on garde `cdn.tailwindcss.com` (~1.5 MB premier load). Le service worker cache shell absorbe la lib après le 1er chargement, donc le coût n'est payé qu'une fois.
+- **Trade-off accepté** : warning console permanent `cdn.tailwindcss.com should not be used in production`. Documenté dans `PROJET_galactus.md` ERREURS CONNUES.
+- **Conséquence si on change** : si Sprint 5 décide de migrer, prévoir : (a) installer Tailwind CLI via npx one-shot (pas de bundler MVP), (b) générer `css/tailwind.compiled.css` par scan des classes utilisées dans `index.html` + `js/*.js`, (c) remplacer le `<script src="cdn.tailwindcss.com">` + config inline par un `<link rel="stylesheet" href="css/tailwind.compiled.css">`, (d) script de rebuild ajouté à README.
+
+### 11. Pattern composants UI = Tailwind utility classes inline (pas de framework)
+
+- **Contexte** : le brief évoque "web components custom" comme alternative, écartés au profit de "classes utility Tailwind composées directement dans le HTML".
+- **Décision** : implémentation Sprint 1 confirme — chaque composant (Btn, AccentBtn, Badge, Field, KPI) est une combinaison de classes utility Tailwind écrite inline dans `index.html`, avec quelques helpers Alpine pour l'état dynamique (active/hover/disabled). Aucun web component, aucun fichier `.js` dédié composant.
+- **Raison** : simplicité MVP, debug visuel direct, pas de couche d'abstraction supplémentaire. Plus verbeux mais lisible.
+- **Conséquence si on change** : si Sprint 5+ décide d'introduire des web components (réutilisabilité Sprints 6+ multi-projets), prévoir refactor de `index.html` (extraction Btn, Badge, KPI en `<gx-btn>`, `<gx-badge>`, etc.). Pas critique aujourd'hui — Galactus reste mono-page.
+
+### 12. Page démo `#/_demo` = référence visuelle pérenne, cachée de la nav
+
+- **Contexte** : extension du plan (MOD-10) au-delà du brief initial. Section design system rendue côté app via une vue Alpine cachée de la nav (4 vues métier seulement dans sidebar/tab bar).
+- **Décision** : `#/_demo` accessible uniquement via URL directe, 14 sections (typographie, palette, badges, boutons, fields, KPI, box, placeholder, bannière, loader vortex). Sert de vérification visuelle Pierre + référence Claude Code en Sprints 2-4.
+- **Raison** : la route est dans la liste autorisée du router (`['ingestion','dashboard','pieces','exports','_demo']`) mais n'est pas listée dans la sidebar/tab bar. Pierre garde le contrôle visuel sans pollution UX.
+- **Conséquence si on change** : si Sprint 5 polish décide de la supprimer (page de "doc dev" pas utile en prod), retirer `_demo` du `allowed` array dans `js/app.js` + retirer la `<template x-if="currentView === '_demo'">` dans `index.html`. Garder `docs/DESIGN.md` comme référence statique.
+
+### 13. PWA icons = placeholders Pillow Python générés au Sprint 1
+
+- **Contexte** : pas d'asset designer prêt au Sprint 1.
+- **Décision** : `icons/_generate.py` (PIL) génère deux PNG 192/512 = gradient radial cosmos→violet→accent→gold + lettre G blanche serif gras. Script committé pour future regénération.
+- **Raison** : éviter dépendance asset externe Sprint 1. Le placeholder respecte la palette cosmic et la lettre G iconique.
+- **Conséquence si on change** : Sprint 5 polish prévu pour remplacer par un asset designer dédié (cohérence avec d'éventuels favicons custom). Si Pierre veut changer dès maintenant, éditer `icons/_generate.py` (taille du G, gradient, font fallback liste) et relancer.

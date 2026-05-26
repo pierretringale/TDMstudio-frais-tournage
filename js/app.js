@@ -7,6 +7,13 @@
 import * as sb from './supabase.js';
 // utils.js importé pour propagation globale via toast event (pas d'import direct ici)
 
+// === ALPINE STORE GLOBAL (Sprint 2) ===
+// `rafaleMode` partagé entre ingestion() et la tab bar du shell.
+// La tab bar mobile lit `$store.app.rafaleMode` pour se masquer pendant l'ingestion en série.
+document.addEventListener('alpine:init', () => {
+  window.Alpine.store('app', { rafaleMode: false });
+});
+
 // === FONCTION ALPINE RACINE ===
 // Exportée globalement via window.app() pour x-data="app()" dans index.html.
 window.app = function () {

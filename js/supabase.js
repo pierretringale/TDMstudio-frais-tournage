@@ -147,3 +147,47 @@ export async function deleteFile(bucket, name) {
     throw error;
   }
 }
+
+// === SPRINT 2 — INGESTION HELPERS ===
+
+// Recherche d'une pièce existante par hash SHA-256 (dédup avant ingestion).
+// hash_md5 = nom legacy de la colonne (contenu : SHA-256 hex 64, voir galactus-decisions.md entrée 4).
+// Renvoie la ligne pieces ou null.
+export async function findPieceByHash(hash) {
+  const { data, error } = await sb
+    .from('pieces')
+    .select('id, date_piece, fournisseur, fournisseur_slug, montant_ttc, categorie, activite, statut, reference_fournisseur')
+    .eq('hash_md5', hash)
+    .maybeSingle();
+  if (error) {
+    console.error('[SUPABASE-PIECES] Échec findPieceByHash', { message: error.message });
+    throw error;
+  }
+  return data;
+}
+
+// Invoke l'Edge Function analyze-receipt (Sprint 2).
+// pages : [{numero, base64, media_type}]
+// hint : {categorie?, activite?} optionnel — override les suggestions OCR
+export async function invokeAnalyzeReceipt(pages, hint = null) {
+  const { data, error } = await sb.functions.invoke('analyze-receipt', {
+    body: { pages, hint },
+  });
+  if (error) {
+    console.error('[SUPABASE-FN] Échec analyze-receipt', { message: error.message });
+    throw error;
+  }
+  if (data?.error === 'quota_exceeded') {
+    const e = new Error('quota_exceeded');
+    e.code = 'quota_exceeded';
+    throw e;
+  }
+  return data;
+}
+
+// Upload + signed URL en une seule opération (Sprint 2 mutualise input/output).
+// Renvoie l'URL signée pour preview / référence DB.
+export async function uploadAndGetSignedUrl(bucket, file, name, expiresIn = 3600) {
+  await uploadFile(bucket, file, name);
+  return getSignedUrl(bucket, name, expiresIn);
+}

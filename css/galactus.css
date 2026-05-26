@@ -181,3 +181,99 @@ body.modal-open { overflow: hidden; }
 
 /* === UTILITIES SPÉCIFIQUES === */
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* ====================================================================== */
+/* === SPRINT 2 — INGESTION ============================================== */
+/* ====================================================================== */
+
+/* === VORTEX MULTI-VITESSES (loader OCR) === */
+/* Anneaux concentriques en rotation, durées et directions opposées pour effet de vortex */
+@keyframes vortex-spin-rev {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+.vortex-spin-3s     { animation: vortex-spin     3s linear infinite; }
+.vortex-spin-4s-rev { animation: vortex-spin-rev 4s linear infinite; }
+.vortex-spin-5s     { animation: vortex-spin     5s linear infinite; }
+
+/* === VORTEX DOC (document blanc avalé) === */
+.vortex-doc {
+  transform: rotate(-12deg);
+  opacity: 0.6;
+}
+
+/* === BARRE PROGRESSION OCR (animation gauche → droite magenta) === */
+@keyframes ocr-progress {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.ocr-progress-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  height: 4px;
+}
+.ocr-progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
+  animation: ocr-progress 1.4s linear infinite;
+}
+
+/* === CONFIDENCE FIELD BORDERS (border conditionnel selon confiance OCR par champ) === */
+.field-conf-low  { border-color: var(--red);   border-width: 1.5px; }
+.field-conf-mid  { border-color: var(--amber); border-width: 1.5px; }
+.field-conf-high { border-color: var(--green); border-width: 1.5px; }
+
+/* === FILENAME PREVIEW (background ink, segments colorés mono) === */
+.filename-preview {
+  background-color: var(--ink);
+  color: var(--paper);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 12px;
+  border-radius: 4px;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.filename-preview .seg-date   { color: #9ec5ff; }
+.filename-preview .seg-vendor { color: #ffb38c; }
+.filename-preview .seg-amount { color: #ffe27c; }
+.filename-preview .seg-cat    { color: #c9adff; }
+.filename-preview .seg-act    { color: #7cffba; }
+.filename-preview .seg-empty  { color: var(--faint); font-style: italic; }
+
+/* === FILTER CHIPS INGESTION (single-select, on/off + accent gradient) === */
+.chip-ingest {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--rule);
+  color: var(--mid);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+}
+.chip-ingest:hover { border-color: var(--ink); color: var(--ink); }
+.chip-ingest.chip-on {
+  background: linear-gradient(180deg, var(--hot) 0%, var(--accent) 100%);
+  border-color: var(--ink);
+  color: white;
+  box-shadow: 0 0 12px rgba(255, 31, 109, 0.45);
+}
+
+/* === MODAL BACKDROP COMMUN === */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(10, 10, 14, 0.55);
+  backdrop-filter: blur(2px);
+}

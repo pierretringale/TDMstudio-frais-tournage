@@ -6,8 +6,8 @@
 |---|---|
 | Phase | Sprint 0 terminé (2026-05-22) |
 | Prochaine étape | Sprint 1 — UI shell + navigation + auth + PWA (~3h) |
-| Bloquant | Action manuelle Pierre : config Supabase Auth (JWT 30j + Site URLs) via dashboard |
-| À NE PAS FAIRE | Pas React (Alpine.js + Tailwind seulement). Pas d'appel direct Indy (pas d'API publique). Pas multi-user. RLS hors-scope galactus mais critique en sprint sécu parallèle S23-24. Suffixe activité (TDM/VUM/MIX) obligatoire sur chaque pièce. JWT TTL 30 jours. Pas de git push pendant upload actif. 5 catégories CHECK figées (`fournisseur`, `ndf`, `materiel`, `ndf-mois`, `vente`). Charte TDM v1.1 PAS applicable, palette cosmic libre. Pas de quote-part TVA fine (Indy s'en charge). Pas de framework de composants lourd, Tailwind utility classes inline. |
+| Bloquant | Aucun (Sprint 0 verrouillé, actions manuelles Pierre soldées le 2026-05-22) |
+| À NE PAS FAIRE | Pas React (Alpine.js + Tailwind seulement). Pas d'appel direct Indy (pas d'API publique). Pas multi-user. RLS hors-scope galactus mais critique en sprint sécu parallèle S23-24. Suffixe activité (TDM/VUM/MIX) obligatoire sur chaque pièce. Pas de git push pendant upload actif. 5 catégories CHECK figées (`fournisseur`, `ndf`, `materiel`, `ndf-mois`, `vente`). Charte TDM v1.1 PAS applicable, palette cosmic libre. Pas de quote-part TVA fine (Indy s'en charge). Pas de framework de composants lourd, Tailwind utility classes inline. |
 | URL | GitHub Pages temporaire (`pierretringale.github.io/galactus`) — domaine prod cible : `galactus.tdmstudio.fr` (CNAME Squarespace, Sprint 5) |
 | Repo GitHub | `pierretringale/galactus` (renommé depuis `TDMstudio-frais-tournage` le 2026-05-22) |
 | Project Supabase | `eqlofgcravaihvfaysdb` (mutualisé entre projets TDM, conventions préfixes `vm_*`, `pp_*`, `lor_*`, `trf_*` — galactus utilise `pieces` + `fournisseurs_recurrents` sans préfixe) |
@@ -24,7 +24,7 @@ Galactus = outil compta interne TDM studio + vu.media. Single-user (Pierre dilet
 | Framework UI | **Alpine.js CDN** + **Tailwind CDN** | Zéro build step, MVP single-user, prototype rapide. Pas React — Stack figée session design 2026-05-21 |
 | Fonts | Inter / Big Shoulders Display / JetBrains Mono | Inter body / Display titres uppercase / Mono data + filenames |
 | DB | **Supabase Postgres** (project `eqlofgcravaihvfaysdb`) | Mutualisé avec autres outils TDM, MCP intégré pour migrations |
-| Auth | Supabase Auth, compte Pierre unique, JWT TTL 30 jours | Single-user, refresh peu fréquent souhaité |
+| Auth | Supabase Auth, compte Pierre unique, défauts Free plan (JWT 1h + refresh token rotating auto) | Single-user, lib `supabase-js` rafraîchit le JWT en arrière-plan, pas de relogin visible. Voir `galactus-decisions.md` entrée 9 |
 | Storage | 2 buckets : `galactus-input` (originaux), `galactus-output` (PDFs renommés) | Bucket `justificatifs-frais` legacy conservé 3 mois en backup |
 | Edge Functions | 4 Deno : `analyze-receipt` (OCR Claude), `generate-monthly-export`, `generate-ndf-mois`, `generate-pre-ca3` | Sprint 0 : `analyze-receipt` rapatriée. Sprint 2-4 : extensions + nouvelles |
 | Modèle Claude API | `claude-sonnet-4-6` | Équilibre coût/qualité OCR factures, ~$0.01/pièce |
@@ -80,5 +80,5 @@ Voir `galactus-decisions.md` (journal append-only).
 | 2026-05-22 | ⚠️ Wireframes affichent domaine `galactus.tdm.studio` | Source : maquettes Claude Design (`design-handoff/`). Le vrai domaine prod est `galactus.tdmstudio.fr` (cohérent `jarvis.tdmstudio.fr`). Ne pas s'aligner sur les wireframes pour ce point. | Documenté ici + dans `galactus-conventions.md`. | N/A (documentation) |
 | 2026-05-22 | 🗑️ Bucket `justificatifs-frais` à drop | Migration legacy → `galactus-input` faite Sprint 0. Bucket legacy conservé 3 mois en backup pour rollback éventuel. | À drop le **2026-08-22** si aucun rollback nécessaire. | N/A (TODO planifié) |
 | 2026-05-22 | ⚠️ Warning console Tailwind CDN attendu Sprint 1 | `cdn.tailwindcss.com should not be used in production`. Connu, accepté MVP single-user. | Documenter quand Sprint 1 lancera l'app. Migration Tailwind CLI précompilé prévue Sprint 5+ si perf devient un problème. | N/A |
-| 2026-05-22 | ⚠️ Token GitHub `ghp_k498...` était exposé dans `.git/config` legacy | Remote HTTPS avec token embédé sur l'ancien repo. | Remote reconfigurée en SSH Sprint 0 (plus de token dans `.git/config`). **Pierre doit révoquer le token côté GitHub** (Settings → Developer settings → PAT) si pas encore fait. | Non |
+| 2026-05-22 | ⚠️ Token GitHub `ghp_k498...` était exposé dans `.git/config` legacy | Remote HTTPS avec token embédé sur l'ancien repo. | Remote reconfigurée en SSH Sprint 0 (plus de token dans `.git/config`). **Token révoqué côté GitHub le 2026-05-22 par Pierre.** | Non |
 | 2026-05-22 | ⚠️ Advisory critique Supabase : 39 tables sans RLS | Connu depuis session pilotage. Hors-scope galactus. | Sprint sécu RLS parallèle S23-24 (brief séparé). Ne pas démarrer prod galactus sans. | N/A |

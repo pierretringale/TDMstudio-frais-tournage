@@ -45,3 +45,10 @@ Une entrée par décision structurante. Datée. Avec **Raison** + **Conséquence
 
 - **Raison** : éviter dette cohabitation entre 3 buckets. Téléchargement via URLs publiques `justificatifs-frais` + re-upload via API anon dans `galactus-input` (les policies anon insert créées Sprint 0 le permettent).
 - **Conséquence si on change** : `justificatifs-frais` reste actif comme backup 3 mois (drop programmé 2026-08-22). Si rollback nécessaire avant 3 mois, UPDATE inverse dispo dans migration 06.
+
+### 9. JWT custom expiry 30 jours **annulé** → défauts Supabase Free plan acceptés
+
+- **Contexte** : le brief Sprint 0 prévoyait JWT TTL = 2 592 000s (30 jours) pour éviter les reloginsfréquents.
+- **Constat 2026-05-22** : la config "User Sessions" (Time-box, Inactivity timeout) est verrouillée Pro plan dans le dashboard Supabase. Sur Free, JWT access token = 1h fixé, refresh token rotating activé par défaut.
+- **Raison de l'annulation** : la lib `@supabase/supabase-js` rafraîchit automatiquement le JWT en arrière-plan tant que le refresh token est valide. Effet pratique pour Pierre = identique (pas de relogin forcé toutes les heures). Pas de valeur ajoutée à passer Pro pour ce seul réglage au stade MVP.
+- **Conséquence si on change** : si passage Pro plan futur pour d'autres raisons (volume, support), on pourra étendre Time-box session à 30j pour aligner sur le brief original. Sinon, défauts Free suffisent.

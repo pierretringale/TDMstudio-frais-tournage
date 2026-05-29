@@ -4,9 +4,9 @@
 
 | Élément | État |
 |---|---|
-| Phase | Sprint 1 terminé (2026-05-22) |
-| Prochaine étape | Sprint 2 — Vue Ingestion fonctionnelle (caméra/fichier) + Edge Function analyze-receipt étendue + loader vortex + validation post-OCR (~4h) |
-| Bloquant | Aucun |
+| Phase | Sprint 2 testé & validé end-to-end (2026-05-29) — **8/8 tests verts**. Prompt OCR **v5** déployé, fix RLS storage appliqué, fixes client (séparateur point, boutons Annuler, garde crypto.subtle). |
+| Prochaine étape | Sprint 3 — Vue Pièces + Vue Dashboard (~4h). Intégrer les findings du test run (justificatif_url URL signée 1h → stocker le chemin + signer à la volée ; justificatif multi-page → pointer output consolidé ; check doublon AVANT l'OCR ; queue mini-rafale batch). Détail dans `~/.claude/.../memory/galactus-fix-prompt-v5-ocr.md`. |
+| Bloquant | Aucun. Test 2 (OCR photo iPhone end-to-end) différé : à valider une fois galactus servi en HTTPS (crypto.subtle requiert un secure context — cf ERREURS CONNUES). |
 | À NE PAS FAIRE | Pas React (Alpine.js + Tailwind seulement). Pas d'appel direct Indy (pas d'API publique). Pas multi-user. RLS hors-scope galactus mais critique en sprint sécu parallèle S23-24. Suffixe activité (TDM/VUM/MIX) obligatoire sur chaque pièce. Pas de git push pendant upload actif. 5 catégories CHECK figées (`fournisseur`, `ndf`, `materiel`, `ndf-mois`, `vente`). Charte TDM v1.1 PAS applicable, palette cosmic libre. Pas de quote-part TVA fine (Indy s'en charge). Pas de framework de composants lourd, Tailwind utility classes inline. |
 | URL | GitHub Pages temporaire (`pierretringale.github.io/galactus`) — domaine prod cible : `galactus.tdmstudio.fr` (CNAME Squarespace, Sprint 5) |
 | Repo GitHub | `pierretringale/galactus` (renommé depuis `TDMstudio-frais-tournage` le 2026-05-22) |
@@ -35,7 +35,7 @@ Galactus = outil compta interne TDM studio + vu.media. Single-user (Pierre dilet
 - **5 catégories CHECK** : `fournisseur`, `ndf`, `materiel`, `ndf-mois`, `vente`. Figées schéma Sprint 0.
 - **3 activités CHECK** : `TDM`, `VUM`, `MIX`. Suffixe obligatoire sur chaque pièce pour analytique Indy.
 - **5 statuts CHECK** : `a_traiter`, `traite`, `uploade_indy`, `consolide_dans_ndf_mois`, `archive`. Workflow : a_traiter → traite → uploade_indy (manuel) / consolide_dans_ndf_mois → archive.
-- **Convention nom de fichier** : `YYYY-MM-DD_fournisseur-slug_montantTTC_categorie_[TDM|VUM|MIX].pdf` (toujours .pdf en sortie, consolidation multi-pages côté Edge Function).
+- **Convention nom de fichier** : `YYYY-MM-DD_fournisseur-slug_montantTTC_categorie_[TDM|VUM|MIX].pdf` (toujours .pdf en sortie ; consolidation multi-pages **côté client** via pdf-lib — pas Edge Function ; montantTTC avec **point** décimal depuis 2026-05-29, ex. `6.00`, CSV-safe pour exports Indy).
 - **Single-user** : compte Pierre unique, RLS hors-scope ce sprint.
 - **Pas d'API Indy** : workflow upload manuel guidé en 3 étapes (Sélection → ZIP → confirmer).
 - **Pas de quote-part TVA fine** : galactus stocke HT/TVA/TTC séparés + activité, Indy gère la règle comptable.
@@ -65,10 +65,16 @@ galactus/
 
 | Route / Élément | Description | État | Sprint |
 |---|---|---|---|
-| `#/ingestion` (défaut) | Vue Ingestion (placeholder striped) | 🟡 Stub | Sprint 2 |
+| `#/ingestion` (défaut) | Vue Ingestion bout en bout : capture/drop → OCR → validation → INSERT pieces + uploads buckets | ✅ Actif | Sprint 2 |
 | `#/dashboard` | Vue Dashboard (placeholder striped) | 🟡 Stub | Sprint 3 |
 | `#/pieces` | Vue Pièces (placeholder striped) | 🟡 Stub | Sprint 3 |
 | `#/exports` | Vue Exports (placeholder striped) | 🟡 Stub | Sprint 4 |
+| Edge Function `analyze-receipt` **v5** | OCR multi-pages Claude Sonnet 4.6, schéma enrichi. v5 (2026-05-29) : `reference_fournisseur` conditionnelle (facture formelle + n° préfixé + récurrent/≥100€ + conf≥0.7, verbatim), `description` forcée FR, hint Anthropic→MIX. max_tokens 2500 | ✅ Actif | Sprint 2 / 2.5 |
+| Boutons "Annuler" ingestion | Staging (vide les pages) + écran validation (abandonne la pièce + sort de rafale). Réutilisent `resetForm()` | ✅ Actif | Sprint 2.5 |
+| Subview rafale | Mode rafale Pierre (compteur ascendant, tab bar masquée via `Alpine.store('app').rafaleMode`) | ✅ Actif | Sprint 2 |
+| Modal doublon | Détection hash SHA-256 + carte d'identité pièce existante. Boutons "Voir détail" / "Créer quand même" disabled Sprint 3 | ✅ Actif (limité) | Sprint 2 |
+| Vortex loader OCR | Overlay plein écran `#0b0a14` + 4 anneaux concentriques multi-vitesses + doc avalé + barre progression | ✅ Actif | Sprint 2 |
+| FilenamePreview live | Background ink + 5 segments colorés mono mis à jour à chaque keystroke (Alpine x-text) | ✅ Actif | Sprint 2 |
 | `#/_demo` | Page démo Design System (cachée nav, référence visuelle pérenne) | ✅ Actif | Sprint 1 |
 | Login overlay | Auth Supabase compte Pierre unique (email + password) | ✅ Actif | Sprint 1 |
 | Sidebar desktop (≥768px) | Nebula + étoiles + halo logo + 4 nav items | ✅ Actif | Sprint 1 |
@@ -79,7 +85,18 @@ galactus/
 
 ## CAS LIMITES IDENTIFIÉS
 
-À remplir au fil des sessions.
+| Cas | Comportement attendu | Sprint identifié |
+|---|---|---|
+| Photo iPhone HEIC | Refusée côté input (accept restrictif `image/jpeg,image/png`). Toast guide Pierre vers Réglages iOS > Appareil photo > Formats > "Le plus compatible". | Sprint 2 |
+| PDF protégé/chiffré | `pdf-lib` plante au `PDFDocument.load`. Catch → toast "PDF protégé non supporté, déprotège via Aperçu macOS (Fichier > Exporter > sans mot de passe)". Pas d'INSERT, pas d'upload. | Sprint 2 |
+| CDN `unpkg.com/pdf-lib` down | `window.PDFLib` undefined → `buildPdfFromPages` throw. Toast "Service de conversion PDF indisponible, réessayer dans quelques minutes". Pas d'INSERT car erreur avant. | Sprint 2 |
+| Quota Anthropic API (429) | Edge Function retourne `{ error: 'quota_exceeded' }`. Client détecte code, toast "Quota OCR dépassé temporairement, réessaie dans quelques minutes". Sub-view revient à `home`. | Sprint 2 |
+| OCR JSON malformé | Fallback Edge Function : `confiance_ocr=0`, `confidence_per_field={...:0}`, `ocr_text_brut=raw`. Tous les fields en border rouge `field-conf-low`, Pierre remplit à la main. | Sprint 2 |
+| Drop multi-fichiers desktop | Modal de choix "même pièce / pièces séparées". Sprint 2 : "séparées" traite la 1ʳᵉ + toast. Sprint 3 : queue mini-rafale prévue. | Sprint 2 / Sprint 3 |
+| Hash UNIQUE collision après modal doublon | Sprint 2 : boutons "Créer quand même" / "Voir détail" du modal sont **disabled** (cosmétiques). Si insert tente collision via une autre source → toast "Doublon strict refusé". | Sprint 2 / Sprint 3 |
+| Édition pendant rafale | Impossible Sprint 2 — Pierre se trompe à la pièce N en rafale, pas de back. Toast info au démarrage rafale. Édition disponible Sprint 3 via vue Pièces. | Sprint 2 / Sprint 3 |
+| Upload bucket échoue après INSERT OK | Pièce reste en DB avec `justificatif_url='pending'`, pas d'orphelin fichier. Sprint 3 : bouton "Réuploader justificatif" dans modal édition. | Sprint 2 / Sprint 3 |
+| Accès en HTTP non sécurisé (IP LAN type `http://192.168.x.x`) | `crypto.subtle` indisponible hors secure context → garde dans `startOCR` : toast clair + abort, pas de crash. PROD = HTTPS donc OK. Test iPhone local : passer par tunnel HTTPS. | Sprint 2.5 |
 
 ## JOURNAL DES DÉCISIONS TECHNIQUES
 
@@ -94,3 +111,10 @@ Voir `galactus-decisions.md` (journal append-only).
 | 2026-05-22 | ⚠️ Warning console Tailwind CDN | `cdn.tailwindcss.com should not be used in production`. Connu, accepté MVP single-user (~1.5 MB charge initiale mobile, mais cache PWA absorbe après 1er load). | Documenté et présent en prod Sprint 1. Migration Tailwind CLI précompilé prévue Sprint 5+ si perf devient un problème. Voir `galactus-decisions.md` entrée 10. | N/A |
 | 2026-05-22 | ⚠️ Token GitHub `ghp_k498...` était exposé dans `.git/config` legacy | Remote HTTPS avec token embédé sur l'ancien repo. | Remote reconfigurée en SSH Sprint 0 (plus de token dans `.git/config`). **Token révoqué côté GitHub le 2026-05-22 par Pierre.** | Non |
 | 2026-05-22 | ⚠️ Advisory critique Supabase : 39 tables sans RLS | Connu depuis session pilotage. Hors-scope galactus. | Sprint sécu RLS parallèle S23-24 (brief séparé). Ne pas démarrer prod galactus sans. | N/A |
+| 2026-05-26 | 📐 Dette : colonne `pieces.hash_md5` contient en réalité du SHA-256 | Web Crypto SubtleCrypto n'expose pas MD5 (Sprint 0 décision 4). Nom de colonne conservé pour éviter migration Sprint 2. | À renommer un jour `hash_sha256` ou `fichier_hash` via migration mineure (Sprint 3+). | N/A (dette acceptée) |
+| 2026-05-26 | ⚠️ HEIC iPhone non supporté | `pdf-lib` ne lit pas HEIC. Format par défaut iPhone récent. | Restriction input `accept="image/jpeg,image/png,application/pdf"`. Pierre doit basculer Réglages iPhone > Appareil photo > Formats > "Le plus compatible". Documenté dans `docs/gouvernance/erreurs-connues.md`. | Non |
+| 2026-05-26 | ⚠️ PDF chiffrés / protégés non supportés | `pdf-lib.load` plante sur PDF avec password. | Try/catch dans `buildPdfFromPages` → toast clair vers Aperçu macOS. Documenté `docs/gouvernance/erreurs-connues.md`. | Non |
+| 2026-05-26 | ⚠️ Édition impossible pendant rafale | Pas de back dans le flow rafale Sprint 2. Si Pierre se trompe à la pièce N, validation forcée puis correction Sprint 3. | Toast info au démarrage rafale. Édition complète Sprint 3 via vue Pièces (modal édition). | Non |
+| 2026-05-26 | 📐 Bouton "Créer quand même" du modal doublon = disabled cosmétique | Contrainte UNIQUE sur `hash_md5` planterait l'INSERT. Sprint 2 = bouton désactivé + tooltip "Disponible Sprint 3". | Implémentation fix Sprint 3 via colonne `hash_collision_n` + ALTER UNIQUE → UNIQUE(hash_md5, hash_collision_n). | N/A (dette planifiée) |
+| 2026-05-29 | 🔴 Uploads Storage en 400 ("new row violates row-level security policy") — INSERT pieces OK mais `justificatif_url` reste `pending` | Les 8 policies `galactus_*` sur `storage.objects` étaient scopées rôle **`anon`** (héritage frais-tournage sans login). Le Sprint 1 a introduit l'auth Supabase → uploads en rôle **`authenticated`** → aucune policy ne matchait. `pieces` passait car RLS désactivée dessus. | Migration `galactus_storage_policies_to_authenticated` : ALTER POLICY ×8 → `authenticated`. Vérifié : ingestion bout en bout OK. **Leçon : tout ajout d'auth doit re-vérifier les policies storage.** | Non (mais à re-checker si nouveau bucket) |
+| 2026-05-29 | ⚠️ `crypto.subtle.digest` → "undefined is not an object" sur iPhone en test local | `crypto.subtle` (Web Crypto) indisponible hors secure context. `http://192.168.x.x` (IP LAN HTTP) n'est pas un secure context ; `localhost` et HTTPS le sont. | Garde défensive dans `startOCR` (`!window.isSecureContext || !crypto.subtle` → toast + abort). Impact PROD nul (GitHub Pages + domaine = HTTPS). Test iPhone local = tunnel HTTPS. | Non |

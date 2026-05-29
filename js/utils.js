@@ -59,11 +59,11 @@ export async function hashFile(file) {
  * YYYY-MM-DD_fournisseur-slug_montantTTC_categorie_[TDM|VUM|MIX].pdf
  *
  * Toujours .pdf en sortie. Les pièces multi-pages sont consolidées en PDF unique
- * côté Edge Function avant écriture dans galactus-output, donc le nom reste unique
- * par pièce indépendamment du nombre de pages source.
+ * CÔTÉ CLIENT (pdf-lib, buildPdfFromPages) avant écriture dans galactus-output,
+ * donc le nom reste unique par pièce indépendamment du nombre de pages source.
  *
- * Le montant est formaté avec virgule décimale (convention FR) et 2 décimales fixes.
- * Exemple : 1234.5 → "1234,50".
+ * Le montant est formaté avec POINT décimal et 2 décimales fixes (CSV-safe pour
+ * les exports Indy Sprint 4). Exemple : 1234.5 → "1234.50".
  *
  * @param {Object} piece - { date_piece, fournisseur_slug, montant_ttc, categorie, activite }
  * @returns {string} Le nom de fichier normalisé.
@@ -71,7 +71,7 @@ export async function hashFile(file) {
 export function composeFilename(piece) {
   const date = formatDate(piece.date_piece, 'iso') || 'sans-date';
   const slug = piece.fournisseur_slug || 'sans-fournisseur';
-  const montant = Number(piece.montant_ttc || 0).toFixed(2).replace('.', ',');
+  const montant = Number(piece.montant_ttc || 0).toFixed(2);
   const cat = piece.categorie || 'sans-cat';
   const act = piece.activite || 'TDM';
   return `${date}_${slug}_${montant}_${cat}_${act}.pdf`;

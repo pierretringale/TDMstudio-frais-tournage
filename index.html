@@ -84,6 +84,12 @@
   <!-- App modules ES (app.js importe utils.js + supabase.js) -->
   <script type="module" src="js/app.js"></script>
 
+  <!-- Vue Ingestion Sprint 2 (window.ingestion + composant Alpine) -->
+  <script type="module" src="js/ingestion.js"></script>
+
+  <!-- pdf-lib UMD pour conversion image→PDF + concat multi-pages (Sprint 2) -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
   <!-- Alpine.js (defer assure exécution après app.js qui définit window.app) -->
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 </head>
@@ -214,7 +220,9 @@
     </aside>
 
     <!-- ============== TAB BAR MOBILE (< md) ============== -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-paper border-t-2 border-ink flex items-center justify-around px-2 py-2"
+    <!-- Masquée en mode rafale (Sprint 2) — voir Alpine.store('app').rafaleMode -->
+    <nav x-show="!($store.app && $store.app.rafaleMode)"
+         class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-paper border-t-2 border-ink flex items-center justify-around px-2 py-2"
          style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
 
       <!-- Dashboard -->
@@ -258,16 +266,441 @@
     <!-- ============== MAIN CONTENT (4 vues + démo) ============== -->
     <main class="md:ml-[220px] min-h-screen pb-24 md:pb-8">
 
-      <!-- =================== VUE INGESTION =================== -->
+      <!-- =================== VUE INGESTION (Sprint 2) =================== -->
       <template x-if="currentView === 'ingestion'">
-        <section class="p-5 md:p-8 max-w-5xl">
-          <header class="mb-6">
-            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">INGESTION</h1>
-            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Sprint 2 — Photo · Fichier · Batch upload</p>
-          </header>
-          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
-            <span class="font-mono text-mid uppercase text-sm">Vue Ingestion · à venir Sprint 2</span>
+        <section x-data="ingestion()" x-init="init()">
+
+          <!-- ============== HEADER RAFALE (mobile + desktop) ============== -->
+          <div x-show="isRafale" x-cloak
+               class="bg-ink text-paper px-5 md:px-8 py-2 flex items-center justify-between sticky top-0 z-20">
+            <div class="font-mono text-xs uppercase tracking-wider">
+              <span class="text-gold font-bold">RAFALE</span>
+              · <span x-text="rafaleCount"></span> pièce<span x-text="rafaleCount > 1 ? 's' : ''"></span> validée<span x-text="rafaleCount > 1 ? 's' : ''"></span>
+            </div>
+            <button @click="exitRafale(); resetForm(); subview = 'home';"
+                    class="text-[10px] font-mono uppercase tracking-wider text-accent hover:text-accent-soft">Sortir</button>
           </div>
+
+          <!-- ====================================================== -->
+          <!-- === SUBVIEW HOME ====================================== -->
+          <!-- ====================================================== -->
+          <div x-show="subview === 'home'" x-cloak>
+
+            <!-- ============== MOBILE ============== -->
+            <div class="md:hidden p-5 flex flex-col min-h-[calc(100vh-180px)]">
+              <header class="mb-6">
+                <h1 class="font-display font-black text-4xl uppercase">INGESTION</h1>
+                <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Photo · Fichier</p>
+              </header>
+
+              <div class="flex-1 flex flex-col gap-4 justify-center">
+                <!-- Bouton Photo (caméra arrière) -->
+                <button @click="capturePhoto()"
+                        class="bg-gradient-to-b from-hot to-accent text-white border-2 border-ink rounded-lg p-6 shadow-glow-accent flex flex-col items-center gap-2">
+                  <span class="text-4xl leading-none">📷</span>
+                  <span class="font-display font-black text-xl uppercase">Prendre en photo</span>
+                  <span class="font-mono text-[9px] uppercase tracking-wider opacity-80">Caméra arrière · JPG/PNG</span>
+                </button>
+                <input type="file" accept="image/jpeg,image/png" capture="environment" multiple hidden
+                       x-ref="cameraInput" @change="onFilesSelected($event)" />
+
+                <!-- Bouton Fichier -->
+                <button @click="pickFile()"
+                        class="bg-paper text-ink border-2 border-ink rounded-lg p-6 flex flex-col items-center gap-2">
+                  <span class="text-4xl leading-none">📎</span>
+                  <span class="font-display font-black text-xl uppercase">Choisir un fichier</span>
+                  <span class="font-mono text-[9px] uppercase tracking-wider text-mid">PDF · JPG · PNG</span>
+                </button>
+                <input type="file" accept="image/jpeg,image/png,application/pdf" multiple hidden
+                       x-ref="fileInput" @change="onFilesSelected($event)" />
+              </div>
+
+              <!-- Pages ajoutées (multi-pages avant OCR) -->
+              <div x-show="pages.length > 0" x-cloak
+                   class="mt-6 border-2 border-ink rounded-lg p-4 bg-soft">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid mb-2">
+                  <span x-text="pages.length"></span> page<span x-text="pages.length > 1 ? 's' : ''"></span> ajoutée<span x-text="pages.length > 1 ? 's' : ''"></span>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-3">
+                  <template x-for="(p, i) in pages" :key="i">
+                    <div class="relative w-14 h-14 border border-rule rounded bg-paper overflow-hidden">
+                      <template x-if="p.mediaType !== 'application/pdf'">
+                        <img :src="p.previewUrl" class="w-full h-full object-cover" />
+                      </template>
+                      <template x-if="p.mediaType === 'application/pdf'">
+                        <div class="w-full h-full flex items-center justify-center font-mono text-[9px] text-mid">PDF</div>
+                      </template>
+                      <button @click="removePage(i)"
+                              class="absolute -top-1 -right-1 w-4 h-4 bg-red text-white rounded-full text-[10px] leading-none flex items-center justify-center">×</button>
+                    </div>
+                  </template>
+                </div>
+                <div class="flex gap-2">
+                  <button @click="resetForm()"
+                          class="flex-1 border-[1.5px] border-rule rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-mid hover:text-ink">Annuler</button>
+                  <button @click="addPage()"
+                          class="flex-1 border-[1.5px] border-ink rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-ink">+ Page</button>
+                  <button @click="startOCR()"
+                          class="flex-[2] bg-gradient-to-b from-hot to-accent text-white border-[1.5px] border-ink rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider font-bold shadow-glow-accent">Lancer OCR →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============== DESKTOP ============== -->
+            <div class="hidden md:flex min-h-[calc(100vh-80px)]">
+              <!-- Drop zone gauche -->
+              <div class="flex-1 nebula-gradient relative flex items-center justify-center p-10"
+                   @dragover.prevent
+                   @drop.prevent="onDrop($event)">
+                <div class="absolute inset-0 star-field opacity-30 pointer-events-none"></div>
+
+                <div class="relative max-w-2xl w-full text-center text-white">
+                  <h1 class="font-display font-black text-6xl uppercase leading-none mb-3">Donne-moi une facture.</h1>
+                  <p class="font-mono text-xs uppercase tracking-widest text-gold mb-8">Glisse ici · ou clique ci-dessous</p>
+
+                  <div class="border-2 border-dashed border-accent rounded-2xl p-12 bg-cosmos/40 flex flex-col items-center gap-4">
+                    <div class="text-6xl">🌀</div>
+                    <div class="flex gap-3">
+                      <button @click="pickFile()"
+                              class="bg-gradient-to-b from-hot to-accent text-white border-[1.5px] border-paper px-5 py-3 rounded font-bold uppercase tracking-wider text-sm shadow-glow-accent">📎 Choisir un fichier</button>
+                    </div>
+                    <div class="font-mono text-[10px] uppercase tracking-wider text-faint">PDF · JPG · PNG · multi-fichiers OK</div>
+                  </div>
+
+                  <!-- Pages ajoutées desktop -->
+                  <div x-show="pages.length > 0" x-cloak
+                       class="mt-6 bg-paper text-ink rounded-lg p-4 flex items-center gap-4">
+                    <div class="font-mono text-xs uppercase tracking-wider">
+                      <span x-text="pages.length"></span> page<span x-text="pages.length > 1 ? 's' : ''"></span>
+                    </div>
+                    <div class="flex gap-2 flex-1">
+                      <template x-for="(p, i) in pages" :key="i">
+                        <div class="relative w-12 h-12 border border-rule rounded bg-soft overflow-hidden">
+                          <template x-if="p.mediaType !== 'application/pdf'">
+                            <img :src="p.previewUrl" class="w-full h-full object-cover" />
+                          </template>
+                          <template x-if="p.mediaType === 'application/pdf'">
+                            <div class="w-full h-full flex items-center justify-center font-mono text-[9px] text-mid">PDF</div>
+                          </template>
+                          <button @click="removePage(i)"
+                                  class="absolute -top-1 -right-1 w-4 h-4 bg-red text-white rounded-full text-[10px] leading-none flex items-center justify-center">×</button>
+                        </div>
+                      </template>
+                    </div>
+                    <button @click="resetForm()"
+                            class="border-[1.5px] border-rule rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-mid hover:text-ink">Annuler</button>
+                    <button @click="addPage()"
+                            class="border-[1.5px] border-ink rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider">+ Page</button>
+                    <button @click="startOCR()"
+                            class="bg-gradient-to-b from-hot to-accent text-white border-[1.5px] border-ink rounded px-4 py-2 font-mono text-[11px] uppercase tracking-wider font-bold shadow-glow-accent">Lancer OCR →</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel droite : File OCR (placeholder Sprint 3) -->
+              <aside class="w-[340px] bg-paper border-l-2 border-ink p-5 flex flex-col">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid mb-3">File OCR</div>
+                <div class="placeholder-striped flex-1 flex items-center justify-center">
+                  <span class="font-mono text-[10px] uppercase text-mid text-center px-4">Liste des pièces en cours · alimentée Sprint 3</span>
+                </div>
+              </aside>
+            </div>
+          </div>
+
+          <!-- ====================================================== -->
+          <!-- === SUBVIEW OCR (vortex loader plein écran) ========== -->
+          <!-- ====================================================== -->
+          <div x-show="subview === 'ocr'" x-cloak
+               class="fixed inset-0 z-40 flex items-center justify-center"
+               style="background-color: #0b0a14;">
+
+            <!-- Anneaux concentriques (4) -->
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="absolute w-[420px] h-[420px] rounded-full border-[2px] vortex-spin-5s"
+                   style="border-color: rgba(255,31,109,0.20); border-top-color: transparent;"></div>
+              <div class="absolute w-[320px] h-[320px] rounded-full border-[2px] vortex-spin-4s-rev"
+                   style="border-color: rgba(255,31,109,0.35); border-top-color: transparent;"></div>
+              <div class="absolute w-[220px] h-[220px] rounded-full border-[2px] vortex-spin-3s"
+                   style="border-color: rgba(255,31,109,0.55); border-top-color: transparent;"></div>
+              <div class="absolute w-[140px] h-[140px] rounded-full border-[2px] vortex-spin-4s-rev"
+                   style="border-color: rgba(139,61,255,0.70); border-top-color: transparent;"></div>
+            </div>
+
+            <!-- Document avalé -->
+            <div class="vortex-doc relative z-10 w-[80px] h-[110px] bg-paper rounded-sm p-3">
+              <div class="h-2 bg-ink mb-2"></div>
+              <div class="h-[3px] bg-mid mb-1"></div>
+              <div class="h-[3px] bg-mid mb-1"></div>
+              <div class="h-[3px] bg-mid mb-1 w-2/3"></div>
+              <div class="h-[3px] bg-mid mb-1"></div>
+              <div class="h-[3px] bg-mid mb-1 w-1/2"></div>
+            </div>
+
+            <!-- Texte + timer + barre progression -->
+            <div class="absolute bottom-20 left-1/2 -translate-x-1/2 text-center text-white w-[80%] max-w-md">
+              <div class="font-display font-black text-3xl md:text-5xl uppercase leading-none mb-2">GALACTUS</div>
+              <div class="font-mono text-xs uppercase tracking-widest text-gold mb-4">… avale la facture</div>
+              <div class="font-mono text-sm text-accent mb-3">OCR · <span x-text="ocrTimeLabel()"></span></div>
+              <div class="ocr-progress-bar w-full"></div>
+            </div>
+          </div>
+
+          <!-- ====================================================== -->
+          <!-- === SUBVIEW VALIDATION =============================== -->
+          <!-- ====================================================== -->
+          <div x-show="subview === 'validation'" x-cloak class="md:flex md:min-h-[calc(100vh-80px)]">
+
+            <!-- ============== PREVIEW (gauche desktop, top mobile) ============== -->
+            <div class="bg-soft p-5 md:p-6 md:w-1/2 md:flex md:flex-col">
+              <div class="flex items-center justify-between mb-3">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">Aperçu</div>
+                <span class="badge"
+                      :class="globalConfidencePct() >= 80 ? 'badge-conf-high' : globalConfidencePct() >= 50 ? 'badge-conf-mid' : 'badge-conf-low'"
+                      x-text="`OCR ${globalConfidencePct()}%`"></span>
+              </div>
+
+              <!-- Pagination si > 1 page -->
+              <div x-show="pages.length > 1" class="flex items-center justify-center gap-3 mb-3">
+                <button @click="prevPreviewPage()" :disabled="currentPreviewPage === 0"
+                        class="font-mono text-xs uppercase border-[1.5px] border-ink rounded px-3 py-1 disabled:opacity-30">←</button>
+                <span class="font-mono text-[11px] uppercase tracking-wider text-mid">
+                  Page <span x-text="currentPreviewPage + 1"></span> / <span x-text="pages.length"></span>
+                </span>
+                <button @click="nextPreviewPage()" :disabled="currentPreviewPage === pages.length - 1"
+                        class="font-mono text-xs uppercase border-[1.5px] border-ink rounded px-3 py-1 disabled:opacity-30">→</button>
+              </div>
+
+              <!-- Image ou PDF preview -->
+              <div class="border border-rule rounded bg-paper flex-1 flex items-center justify-center overflow-hidden min-h-[200px] md:min-h-[400px]">
+                <template x-if="pages[currentPreviewPage] && pages[currentPreviewPage].mediaType !== 'application/pdf'">
+                  <img :src="pages[currentPreviewPage].previewUrl" class="max-w-full max-h-full object-contain" />
+                </template>
+                <template x-if="pages[currentPreviewPage] && pages[currentPreviewPage].mediaType === 'application/pdf'">
+                  <embed :src="pages[currentPreviewPage].previewUrl" type="application/pdf" class="w-full h-full min-h-[400px]" />
+                </template>
+              </div>
+            </div>
+
+            <!-- ============== FORMULAIRE (droite desktop, bas mobile) ============== -->
+            <div class="p-5 md:p-6 md:w-1/2 md:overflow-y-auto">
+              <header class="mb-5">
+                <button @click="subview = 'home'"
+                        class="font-mono text-[11px] uppercase tracking-wider text-mid mb-2 hover:text-ink">← Retour</button>
+                <h1 class="font-display font-black text-3xl md:text-4xl uppercase">Valider la pièce</h1>
+              </header>
+
+              <div class="flex flex-col gap-4">
+
+                <!-- Date -->
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-mid flex items-center gap-2">
+                    Date <span class="text-[9px] text-faint" x-text="`OCR ${confidencePct('date')}%`"></span>
+                  </label>
+                  <input type="date" x-model="formData.date_piece"
+                         :class="confidenceClass('date')"
+                         class="border border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                </div>
+
+                <!-- Fournisseur + slug auto -->
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-mid flex items-center gap-2">
+                    Fournisseur <span class="text-[9px] text-faint" x-text="`OCR ${confidencePct('fournisseur')}%`"></span>
+                  </label>
+                  <input type="text" x-model="formData.fournisseur" @input="onFournisseurInput()"
+                         :class="confidenceClass('fournisseur')"
+                         class="border border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  <span class="font-mono text-[10px] text-faint" x-text="formData.fournisseur_slug ? `→ ${formData.fournisseur_slug}` : ''"></span>
+                </div>
+
+                <!-- Catégorie -->
+                <div class="flex flex-col gap-2">
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-mid flex items-center gap-2">
+                    Catégorie <span class="text-[9px] text-faint" x-text="`OCR ${confidencePct('categorie')}%`"></span>
+                  </label>
+                  <div class="flex flex-wrap gap-2">
+                    <template x-for="c in ['fournisseur', 'ndf', 'materiel', 'vente']" :key="c">
+                      <span class="chip-ingest" :class="formData.categorie === c ? 'chip-on' : ''"
+                            @click="selectCategorie(c)" x-text="c"></span>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Activité -->
+                <div class="flex flex-col gap-2">
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-mid flex items-center gap-2">
+                    Activité <span class="text-[9px] text-faint" x-text="`OCR ${confidencePct('activite')}%`"></span>
+                  </label>
+                  <div class="flex flex-wrap gap-2">
+                    <template x-for="a in ['TDM', 'VUM', 'MIX']" :key="a">
+                      <span class="chip-ingest" :class="formData.activite === a ? 'chip-on' : ''"
+                            @click="selectActivite(a)" x-text="a"></span>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Montants HT/TVA/TTC -->
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">HT €</label>
+                    <input type="number" step="0.01" x-model.number="formData.montant_ht"
+                           @blur="recalcMontants('ht')"
+                           :class="confidenceClass('montant')"
+                           class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">TVA €</label>
+                    <input type="number" step="0.01" x-model.number="formData.montant_tva"
+                           @blur="recalcMontants('tva')"
+                           :class="confidenceClass('montant')"
+                           class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">TTC €</label>
+                    <input type="number" step="0.01" x-model.number="formData.montant_ttc"
+                           @blur="recalcMontants('ttc')"
+                           :class="confidenceClass('montant')"
+                           class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  </div>
+                </div>
+
+                <!-- Taux TVA -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Taux TVA</label>
+                    <select :value="formData.taux_tva_choice" @change="onTauxTvaChoice($event.target.value)"
+                            class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent">
+                      <option value="20">20 %</option>
+                      <option value="10">10 %</option>
+                      <option value="5.5">5,5 %</option>
+                      <option value="0">0 %</option>
+                      <option value="autre">Autre…</option>
+                    </select>
+                  </div>
+                  <div class="flex flex-col gap-1" x-show="formData.taux_tva_choice === 'autre'">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Taux personnalisé</label>
+                    <input type="number" step="0.01"
+                           :value="formData.taux_tva"
+                           @input="onTauxTvaAutreInput($event.target.value)"
+                           class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  </div>
+                </div>
+
+                <!-- Référence (optionnel) -->
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Référence fournisseur (optionnel)</label>
+                  <input type="text" x-model="formData.reference_fournisseur"
+                         class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                </div>
+
+                <!-- Description (optionnel) -->
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Description (optionnel)</label>
+                  <textarea x-model="formData.description" rows="2"
+                            class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent"></textarea>
+                </div>
+
+                <!-- FilenamePreview -->
+                <div class="filename-preview mt-2">
+                  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Nom de fichier final</div>
+                  <div>
+                    <span :class="filenameSegments().dateEmpty ? 'seg-empty' : 'seg-date'" x-text="filenameSegments().date"></span>_<span :class="filenameSegments().vendorEmpty ? 'seg-empty' : 'seg-vendor'" x-text="filenameSegments().vendor"></span>_<span :class="filenameSegments().montantEmpty ? 'seg-empty' : 'seg-amount'" x-text="filenameSegments().montant"></span>_<span :class="filenameSegments().catEmpty ? 'seg-empty' : 'seg-cat'" x-text="filenameSegments().cat"></span>_<span :class="filenameSegments().actEmpty ? 'seg-empty' : 'seg-act'" x-text="filenameSegments().act"></span>.pdf
+                  </div>
+                </div>
+
+                <!-- Boutons -->
+                <div class="flex flex-col md:flex-row gap-2 mt-4">
+                  <button @click="validateAndSave({continueRafale: true})"
+                          :disabled="busy || !canValidate()"
+                          class="flex-1 bg-gradient-to-b from-hot to-accent text-white border-[1.5px] border-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-sm shadow-glow-accent disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!busy">Valider et suivante →</span>
+                    <span x-show="busy">Enregistrement…</span>
+                  </button>
+                  <button @click="validateAndSave({continueRafale: false})"
+                          :disabled="busy || !canValidate()"
+                          class="border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    Valider et terminer
+                  </button>
+                  <button @click="exitRafale(); resetForm(); subview = 'home';"
+                          :disabled="busy"
+                          class="border-[1.5px] border-rule text-mid rounded px-4 py-3 font-bold uppercase tracking-wider text-sm hover:text-ink disabled:opacity-50">
+                    Annuler
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- ====================================================== -->
+          <!-- === MODAL DOUBLON ==================================== -->
+          <!-- ====================================================== -->
+          <div x-show="doublon.open" x-cloak class="modal-backdrop flex items-end md:items-center justify-center">
+            <div class="bg-paper border-2 border-ink rounded-t-xl md:rounded-lg p-6 w-full max-w-[720px] mx-auto md:mx-4">
+              <div class="flex items-center justify-between mb-4">
+                <div class="font-display font-black text-2xl uppercase">⚠️ Doublon détecté</div>
+                <button @click="closeDoublon()" class="text-mid hover:text-ink text-xl leading-none">×</button>
+              </div>
+
+              <p class="text-sm mb-4">Cette pièce semble déjà avoir été ingérée. Voici l'existante :</p>
+
+              <div class="border-[1.5px] border-amber bg-yellow/20 rounded p-4 mb-4">
+                <div class="flex items-center gap-2 mb-2" x-show="doublon.existing">
+                  <span class="badge" :class="`badge-cat-${doublon.existing?.categorie}`" x-text="doublon.existing?.categorie"></span>
+                  <span class="badge" :class="`badge-act-${doublon.existing?.activite?.toLowerCase()}`" x-text="doublon.existing?.activite"></span>
+                  <span class="badge" :class="`badge-status-${doublon.existing?.statut}`" x-text="doublon.existing?.statut?.replace(/_/g, ' ')"></span>
+                </div>
+                <div class="font-bold text-lg" x-text="doublon.existing?.fournisseur || '—'"></div>
+                <div class="font-mono text-sm text-mid mt-1" x-text="formatExistingInfo()"></div>
+                <div class="font-mono text-xs text-mid mt-1" x-show="doublon.existing?.reference_fournisseur"
+                     x-text="`Réf : ${doublon.existing?.reference_fournisseur}`"></div>
+              </div>
+
+              <div class="flex flex-col md:flex-row gap-2">
+                <button disabled
+                        title="Disponible Sprint 3 (vue Pièces)"
+                        class="flex-1 border-[1.5px] border-faint text-faint rounded px-4 py-3 font-bold uppercase tracking-wider text-xs opacity-60 cursor-not-allowed">
+                  Voir détail (Sprint 3)
+                </button>
+                <button @click="closeDoublon(); resetForm(); subview = 'home';"
+                        class="flex-1 border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs">
+                  Annuler
+                </button>
+                <button disabled
+                        title="Disponible Sprint 3 (gestion collisions hash)"
+                        class="flex-1 bg-faint text-paper border-[1.5px] border-faint rounded px-4 py-3 font-bold uppercase tracking-wider text-xs opacity-60 cursor-not-allowed">
+                  Créer quand même (Sprint 3)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ====================================================== -->
+          <!-- === MODAL MULTI-DROP (drop multi-fichiers desktop) ==== -->
+          <!-- ====================================================== -->
+          <div x-show="multiDrop.open" x-cloak class="modal-backdrop flex items-center justify-center">
+            <div class="bg-paper border-2 border-ink rounded-lg p-6 w-full max-w-[480px] mx-4">
+              <div class="font-display font-black text-2xl uppercase mb-3">Multi-fichiers détectés</div>
+              <p class="text-sm mb-5">
+                Tu as déposé <span class="font-bold" x-text="multiDrop.files.length"></span> fichiers. Ce sont :
+              </p>
+              <div class="flex flex-col gap-2">
+                <button @click="chooseMultiDropMode('same')"
+                        class="bg-gradient-to-b from-hot to-accent text-white border-[1.5px] border-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs shadow-glow-accent">
+                  Les pages d'UNE même pièce
+                </button>
+                <button @click="chooseMultiDropMode('separate')"
+                        class="border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs">
+                  Plusieurs pièces séparées
+                </button>
+                <button @click="multiDrop.open = false; multiDrop.files = [];"
+                        class="text-mid hover:text-ink font-mono text-[11px] uppercase tracking-wider mt-2">Annuler</button>
+              </div>
+              <p class="font-mono text-[10px] uppercase tracking-wider text-amber mt-4">
+                ⚠ Sprint 2 : "pièces séparées" traite la 1ʳᵉ uniquement
+              </p>
+            </div>
+          </div>
+
         </section>
       </template>
 

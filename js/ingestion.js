@@ -217,6 +217,12 @@ window.ingestion = function () {
         return;
       }
 
+      // === GARDE SECURE CONTEXT (crypto.subtle requiert HTTPS ou localhost) ===
+      if (!window.isSecureContext || !window.crypto?.subtle) {
+        toast('Galactus nécessite HTTPS (ou localhost). Sur iPhone en test local, passe par un tunnel HTTPS.', 'error');
+        return;
+      }
+
       this.subview = 'ocr';
       this.isOCR = true;
       this.ocrStartTs = Date.now();
@@ -426,14 +432,14 @@ window.ingestion = function () {
       const date = fd.date_piece ? formatDate(fd.date_piece, 'iso') : '';
       const vendor = fd.fournisseur_slug || (fd.fournisseur ? slugify(fd.fournisseur) : '');
       const montant = (fd.montant_ttc !== null && fd.montant_ttc !== '' && !isNaN(fd.montant_ttc))
-        ? Number(fd.montant_ttc).toFixed(2).replace('.', ',')
+        ? Number(fd.montant_ttc).toFixed(2)
         : '';
       const cat = fd.categorie || '';
       const act = fd.activite || '';
       return {
         date: date || 'sans-date',
         vendor: vendor || 'sans-fournisseur',
-        montant: montant || '0,00',
+        montant: montant || '0.00',
         cat: cat || 'sans-cat',
         act: act || 'TDM',
         // Marqueurs vides pour styles conditionnels

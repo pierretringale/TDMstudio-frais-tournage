@@ -336,6 +336,8 @@
                   </template>
                 </div>
                 <div class="flex gap-2">
+                  <button @click="resetForm()"
+                          class="flex-1 border-[1.5px] border-rule rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-mid hover:text-ink">Annuler</button>
                   <button @click="addPage()"
                           class="flex-1 border-[1.5px] border-ink rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-ink">+ Page</button>
                   <button @click="startOCR()"
@@ -385,6 +387,8 @@
                         </div>
                       </template>
                     </div>
+                    <button @click="resetForm()"
+                            class="border-[1.5px] border-rule rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-mid hover:text-ink">Annuler</button>
                     <button @click="addPage()"
                             class="border-[1.5px] border-ink rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider">+ Page</button>
                     <button @click="startOCR()"
@@ -615,6 +619,11 @@
                           :disabled="busy || !canValidate()"
                           class="border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     Valider et terminer
+                  </button>
+                  <button @click="exitRafale(); resetForm(); subview = 'home';"
+                          :disabled="busy"
+                          class="border-[1.5px] border-rule text-mid rounded px-4 py-3 font-bold uppercase tracking-wider text-sm hover:text-ink disabled:opacity-50">
+                    Annuler
                   </button>
                 </div>
 

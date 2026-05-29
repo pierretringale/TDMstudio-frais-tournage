@@ -172,3 +172,31 @@ Une entrée par décision structurante. Datée. Avec **Raison** + **Conséquence
 - **Décision** : prompt complètement réécrit. Définit explicitement les 5 catégories (`fournisseur`, `ndf`, `materiel`, `vente` ; `ndf-mois` exclus car app-only), les 3 activités avec heuristiques (VUM = SaaS marketing/réseaux sociaux + outils dev vu.media, TDM = matériel/tournage/prod, MIX = usage partagé). Format de sortie JSON strict avec `confiance_ocr` + `confidence_per_field` + `ocr_text_brut`. Hint utilisateur prioritaire override.
 - **Raison** : (a) alignement strict avec contraintes CHECK Postgres (toute valeur invalide planterait l'INSERT en silencieux 400 — voir CLAUDE.md global Pierre Supabase contraintes CHECK) ; (b) heuristiques activité reflètent la réalité TDM/vu.media (la version brief mentionnait Anthropic comme VUM, Pierre a précisé que c'est plutôt VUM si facturé vu.media — pour l'instant les abonnements Anthropic API restent à classer manuellement).
 - **Conséquence si on change** : itérer le prompt après premiers tests fixtures réelles (Pierre). Si les heuristiques activité ratent souvent sur des fournisseurs Anthropic/OpenAI/Replicate, ajouter mentions explicites. Le `ocr_text_brut` retourné permet de debugger les mauvaises classifications.
+
+### 26. Fix RLS Storage — policies `galactus_*` repointées de `anon` vers `authenticated` (2026-05-29)
+
+- **Contexte** : pendant le test run Sprint 2, chaque ingestion plantait — INSERT `pieces` OK mais uploads Storage en **400** ("new row violates row-level security policy"), `justificatif_url` resté `pending`. Diagnostic via logs storage + `pg_policies` : les 8 policies `galactus_*` sur `storage.objects` étaient scopées rôle **`anon`** (héritage `frais-tournage` qui tapait Storage avec la clé anon, sans login). Le **Sprint 1 a introduit l'auth Supabase** → les uploads partent désormais en rôle **`authenticated`** → aucune policy ne matchait. `pieces` passait car sa RLS est désactivée.
+- **Décision** : migration `galactus_storage_policies_to_authenticated` — `ALTER POLICY ... TO authenticated` sur les 8 policies (input/output × insert/read/update/delete). Pas `anon` (single-user authentifié, anon ne doit pas uploader).
+- **Raison** : la RLS de `storage.objects` est active et n'était PAS hors-scope galactus contrairement à ce que laissait croire PROJET. Un changement de mode d'auth invalide silencieusement les policies au mauvais rôle.
+- **Conséquence si on change** : tout nouveau bucket galactus doit avoir ses policies en `authenticated`. Tout changement futur du modèle d'auth (multi-user, anon public, etc.) impose de re-vérifier les rôles des policies storage.
+
+### 27. Prompt OCR v5 — `reference_fournisseur` conditionnelle + `description` FR + hint Anthropic=MIX (2026-05-29)
+
+- **Contexte** : tests fixtures → la `description` sortait en anglais sur facture anglaise ("Prepaid extra usage…"), et `reference_fournisseur` n'avait aucune règle de remplissage (risque : prendre un n° TVA intracom ou code-barres pour une réf). Résout aussi la question ouverte de la décision 25 sur le classement Anthropic.
+- **Décision** : Edge Function redéployée **v5**. (a) `reference_fournisseur` remplie UNIQUEMENT si facture formelle + n° explicite préfixé + (TTC≥100€ OU fournisseur récurrent SaaS) + confidence≥0.7, conservée **verbatim** (pas de normalisation, trim seul) ; sinon null. (b) `description` forcée **en français** (≤80 car). (c) Anthropic/Claude API → **MIX** (usage transverse TDM+vu.media+Galactus), inscrit dans la ligne MIX du prompt.
+- **Raison** : éviter de polluer les tickets one-shot avec de fausses références ; cohérence langue ; figer le classement Anthropic (Pierre tranche MIX, pas VUM comme le supposait le brief initial).
+- **Conséquence si on change** : si un fournisseur récurrent doit forcer une activité différente, l'ajouter comme exemple dans le prompt OU créer une entrée dans `fournisseurs_recurrents` (mapping data-driven, préférable à terme).
+
+### 28. Séparateur décimal du nom de fichier — virgule → point (2026-05-29)
+
+- **Contexte** : `composeFilename` et `filenameSegments` formataient le montant avec une virgule (`6,00`). La clé Storage et la colonne `nom_fichier_normalise` héritaient de la virgule.
+- **Décision** : retrait du `.replace('.', ',')` dans `js/utils.js:74` et `js/ingestion.js` (preview + fallback `'0.00'`). Montant en **point** : `6.00`.
+- **Raison** : CSV-safe pour les exports Indy (Sprint 4) — une virgule non échappée décale les colonnes. Le test a confirmé que Storage acceptait la virgule, donc ce n'était pas un blocage technique mais un risque d'hygiène export. Point = standard.
+- **Conséquence si on change** : si un jour on veut la virgule (affichage FR), le faire à l'affichage (`formatMontant`), jamais dans la clé de fichier ni les exports.
+
+### 29. Boutons "Annuler" + garde secure context (Sprint 2.5, 2026-05-29)
+
+- **Contexte** : deux trous UX repérés au test — pas de bouton pour vider les pages stagées avant OCR, ni pour abandonner une pièce sur l'écran validation. Et `crypto.subtle` (hash) plantait cryptiquement hors HTTPS.
+- **Décision** : (a) bouton "Annuler" sur le staging (mobile+desktop, → `resetForm()`) et sur la validation (→ `exitRafale(); resetForm(); subview='home'`) ; le "← Retour" existant est conservé (revient en gardant les pages). (b) Garde dans `startOCR` : `!window.isSecureContext || !crypto.subtle` → toast clair + abort.
+- **Raison** : réutilise `resetForm()` (zéro nouvelle logique) ; transforme une erreur cryptique en message actionnable. Impact prod nul pour la garde (HTTPS).
+- **Conséquence si on change** : si Sprint 3 ajoute "skip cette pièce sans quitter la rafale", distinguer ce comportement du "Annuler" actuel (qui sort de rafale).

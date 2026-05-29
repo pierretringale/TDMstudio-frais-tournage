@@ -14,7 +14,8 @@ const CORS_HEADERS = {
 // Décision Pierre 2026-05-26 : alias non-daté (dernière version stable Sonnet 4.6 auto).
 const MODEL = 'claude-sonnet-4-6';
 
-// Prompt système validé Pierre 2026-05-26 — itérer après premiers tests fixtures.
+// Prompt v5 — Pierre 2026-05-29 (post tests fixtures Sprint 2) :
+// reference_fournisseur conditionnelle + description forcée FR + hint Anthropic=MIX.
 const PROMPT = `Tu es un OCR comptable pour Galactus, outil interne TDM studio/vu.media.
 Analyse la/les images ou PDF d'une pièce comptable et extrais en JSON strict :
 
@@ -29,7 +30,8 @@ ACTIVITÉS (activite_suggeree, exactement 1) :
 - "VUM" : SaaS marketing/réseaux sociaux (Buffer, Hootsuite, Canva, etc.),
   outils dev liés vu.media (Vercel, Supabase facturées vu.media), prospection vu.media
 - "TDM" : matériel vidéo, location studio, audio, prod, formations audio, frais tournage
-- "MIX" : usage partagé (internet, téléphone, comptable, banque, assurances pro génériques)
+- "MIX" : usage partagé (internet, téléphone, comptable, banque, assurances pro génériques,
+  API/outils IA transverses type Anthropic/Claude API utilisés sur plusieurs projets)
 
 RÈGLES :
 - fournisseur_slug : kebab-case ASCII, NFD-normalize, lowercase, espaces→tirets
@@ -38,6 +40,17 @@ RÈGLES :
 - taux_tva : nombre (20, 10, 5.5, 0)
 - confiance_ocr : moyenne pondérée 0-1 des confidence_per_field
 - confidence_per_field : objet {fournisseur, date, montant, categorie, activite} en 0-1
+- reference_fournisseur : numéro de facture/commande imprimé sur le document, conservé
+  VERBATIM (aucune normalisation, juste trim des espaces). Le remplir UNIQUEMENT si TOUTES
+  ces conditions sont réunies : (1) la pièce est une facture formelle (PAS un ticket de
+  caisse, PAS une NDF perso) ; (2) un numéro lisible et explicite est présent, préfixé
+  "Facture n°"/"Invoice #"/"N°"/"Ref." ; (3) montant TTC ≥ 100€ OU fournisseur récurrent
+  de type abonnement/SaaS (Anthropic, Supabase, Vercel, abonnements mensuels) ;
+  (4) confidence ≥ 0.7. Sinon null — ne JAMAIS deviner : un numéro de TVA intracommunautaire
+  ou un code-barres n'est PAS une référence de facture.
+- description : courte phrase EN FRANÇAIS (toujours, même si la facture est en anglais)
+  résumant l'objet de la pièce (ex. "Abonnement API Claude — mai 2026", "Repas équipe
+  tournage", "Carte SD tournage"). Max ~80 caractères. Sinon null.
 
 HINT UTILISATEUR : si présent, override les suggestions catégorie/activité.
 

@@ -51,17 +51,72 @@ export function onAuthChange(cb) {
 }
 
 // === DB PIECES ===
+// Filtres + tri 100% côté serveur (query Supabase), jamais en JS post-fetch :
+// reste juste si une pagination est ajoutée plus tard.
+// filters = {
+//   recherche, categories[], activites[], statuts[], dateDebut, dateFin,
+//   paye ('oui'|'non'|null — ignoré tant que 'fournisseur' n'est pas dans categories),
+//   tri:{col,dir}, fournisseur_slug
+// }
 export async function listPieces(filters = {}) {
-  let q = sb.from('pieces').select('*').order('date_piece', { ascending: false });
-  if (filters.categorie) q = q.eq('categorie', filters.categorie);
-  if (filters.activite) q = q.eq('activite', filters.activite);
-  if (filters.statut) q = q.eq('statut', filters.statut);
+  let q = sb.from('pieces').select('*');
+
+  // Multi-valeurs (chips) → .in ; valeur unique (compat) → .eq
+  if (Array.isArray(filters.categories) && filters.categories.length) q = q.in('categorie', filters.categories);
+  else if (filters.categorie) q = q.eq('categorie', filters.categorie);
+
+  if (Array.isArray(filters.activites) && filters.activites.length) q = q.in('activite', filters.activites);
+  else if (filters.activite) q = q.eq('activite', filters.activite);
+
+  if (Array.isArray(filters.statuts) && filters.statuts.length) q = q.in('statut', filters.statuts);
+  else if (filters.statut) q = q.eq('statut', filters.statut);
+
   if (filters.fournisseur_slug) q = q.eq('fournisseur_slug', filters.fournisseur_slug);
-  if (filters.from) q = q.gte('date_piece', filters.from);
-  if (filters.to) q = q.lte('date_piece', filters.to);
+
+  // Plage de dates
+  const dateDebut = filters.dateDebut || filters.from;
+  const dateFin = filters.dateFin || filters.to;
+  if (dateDebut) q = q.gte('date_piece', dateDebut);
+  if (dateFin) q = q.lte('date_piece', dateFin);
+
+  // Recherche texte (fournisseur + description + référence). Sanitisation obligatoire :
+  // virgule/parenthèses cassent la syntaxe or-filter PostgREST.
+  const terme = sanitizeSearchTerm(filters.recherche);
+  if (terme) {
+    q = q.or(`fournisseur.ilike.%${terme}%,description.ilike.%${terme}%,reference_fournisseur.ilike.%${terme}%`);
+  }
+
+  // Filtre payé : pertinent uniquement si la catégorie fournisseur est dans la sélection.
+  const fournisseurSelectionne = Array.isArray(filters.categories) && filters.categories.includes('fournisseur');
+  if (fournisseurSelectionne && filters.paye === 'oui') q = q.not('paye_le', 'is', null);
+  if (fournisseurSelectionne && filters.paye === 'non') q = q.is('paye_le', null);
+
+  // Tri serveur
+  const tri = filters.tri || { col: 'date_piece', dir: 'desc' };
+  q = q.order(tri.col || 'date_piece', { ascending: (tri.dir || 'desc') === 'asc' });
+
   const { data, error } = await q;
   if (error) {
     console.error('[SUPABASE-PIECES] Échec listPieces', { message: error.message });
+    throw error;
+  }
+  return data;
+}
+
+// Nettoie un terme de recherche des caractères qui cassent un or-filter PostgREST.
+function sanitizeSearchTerm(raw) {
+  if (!raw) return '';
+  return String(raw).replace(/[,()%]/g, ' ').trim();
+}
+
+// UPDATE groupé sur une sélection (actions de masse vue Pièces).
+// pieceIds = array JS direct dans .in() (JAMAIS JSON.stringify — réservé au JSONB).
+// .select() obligatoire : sans lui un UPDATE renvoie "No rows returned" même s'il
+// a affecté des lignes (gotcha Supabase) → la vérif serait un faux négatif.
+export async function bulkUpdatePieces(pieceIds, patch) {
+  const { data, error } = await sb.from('pieces').update(patch).in('id', pieceIds).select();
+  if (error) {
+    console.error('[SUPABASE-PIECES] Échec bulkUpdatePieces', { n: pieceIds?.length, message: error.message });
     throw error;
   }
   return data;
@@ -102,12 +157,44 @@ export async function deletePiece(id) {
   }
 }
 
+// Suppression complète d'une pièce : fichiers storage associés PUIS ligne DB.
+// Les chemins viennent de justificatif_path (PDF output) + pages[].path_storage_input
+// (pages input). On ne touche JAMAIS le bucket legacy justificatifs-frais (backup 3 mois).
+// Le nettoyage storage est best-effort (un fichier déjà absent ne bloque pas la suppression DB).
+// Confirm UI obligatoire en amont (vue Pièces).
+export async function supprimerPieceComplete(piece) {
+  // Regroupe les objets à supprimer par bucket (depuis les chemins capturés à l'upload).
+  const parBucket = {};
+  const ajouter = (path) => {
+    if (!path || path === 'pending') return;
+    const slash = path.indexOf('/');
+    if (slash < 0) return;
+    const bucket = path.slice(0, slash);
+    if (bucket === 'justificatifs-frais') return; // backup legacy intouchable
+    (parBucket[bucket] ||= []).push(path.slice(slash + 1));
+  };
+
+  ajouter(piece.justificatif_path);
+  if (Array.isArray(piece.pages)) {
+    for (const pg of piece.pages) ajouter(pg?.path_storage_input);
+  }
+
+  for (const [bucket, objets] of Object.entries(parBucket)) {
+    const { error } = await sb.storage.from(bucket).remove(objets);
+    if (error) {
+      console.warn('[SUPABASE-STORAGE] Échec suppression fichiers (non bloquant)', { bucket, message: error.message });
+    }
+  }
+
+  await deletePiece(piece.id);
+}
+
 // === DB FOURNISSEURS RÉCURRENTS ===
 export async function listFournisseursRecurrents() {
   const { data, error } = await sb
     .from('fournisseurs_recurrents')
     .select('*')
-    .order('nom_canonique');
+    .order('nom');
   if (error) {
     console.error('[SUPABASE-FOURNISSEURS] Échec list', { message: error.message });
     throw error;
@@ -136,6 +223,29 @@ export async function getSignedUrl(bucket, name, expiresIn = 3600) {
   if (error) {
     console.error('[SUPABASE-STORAGE] Échec signed URL', { bucket, name, message: error.message });
     throw error;
+  }
+  return data.signedUrl;
+}
+
+// Signature à la volée d'un justificatif depuis son justificatif_path (Sprint 3, finding B).
+// path = "bucket/objet/...eventuels/sous-dossiers" → bucket = 1ᵉʳ segment, objet = reste.
+// Aucune URL signée n'est jamais stockée en base : on signe à chaque besoin (toujours frais,
+// y compris après > 1h de session). path NULL/'pending' → renvoie null (placeholder côté UI).
+export async function signJustificatif(path, opts = {}) {
+  if (!path || path === 'pending') return null;
+  const slash = path.indexOf('/');
+  if (slash < 0) {
+    console.warn('[SUPABASE-STORAGE] justificatif_path mal formé (bucket manquant)', { path });
+    return null;
+  }
+  const bucket = path.slice(0, slash);
+  const objet = path.slice(slash + 1);
+  const expiresIn = opts.expiresIn ?? 3600;
+  const transform = opts.transform ? { transform: opts.transform } : undefined;
+  const { data, error } = await sb.storage.from(bucket).createSignedUrl(objet, expiresIn, transform);
+  if (error) {
+    console.error('[SUPABASE-STORAGE] Échec signJustificatif', { bucket, message: error.message });
+    return null;
   }
   return data.signedUrl;
 }

@@ -42,13 +42,12 @@ Convention : **P1** = critique (bloque la prod), **P2** = important (à fixer pr
 
 ## P3 — Dette mineure / informationnel
 
-### Colonne `pieces.hash_md5` contient en réalité du SHA-256 (2026-05-26)
+### ✅ RÉSOLU — Colonne `pieces.hash_md5` contenait du SHA-256 (2026-05-26 → soldé 2026-05-29)
 
-- **Symptôme** : nom de colonne trompeur. Lecture de schéma DB suggère MD5 alors que le contenu est SHA-256 hex 64 chars.
-- **Cause racine** : Web Crypto SubtleCrypto n'expose pas MD5 (Sprint 0 décision 4). Le nom de colonne `hash_md5` était hérité de la table `frais_tournage` legacy. Pas de migration prioritaire Sprint 0-2.
-- **Contournement** : documenté dans `js/utils.js::hashFile()` ET `galactus-decisions.md` entrée 4 ET entrée 23.
-- **Fix prévu** : migration mineure Sprint 3+ : `ALTER TABLE pieces RENAME COLUMN hash_md5 TO hash_sha256;` + update `js/supabase.js::findPieceByHash` + update payload INSERT dans `js/ingestion.js`.
-- **Récurrent** : N/A (dette acceptée).
+- **Symptôme** : nom de colonne trompeur. Lecture de schéma DB suggérait MD5 alors que le contenu est SHA-256 hex 64 chars.
+- **Cause racine** : Web Crypto SubtleCrypto n'expose pas MD5 (Sprint 0 décision 4). Le nom `hash_md5` était hérité de `frais_tournage` legacy.
+- **Fix appliqué (Sprint 3)** : `ALTER TABLE pieces RENAME COLUMN hash_md5 TO hash_sha256` (migration `20260529181525`). `js/supabase.js::findPieceByHash` et le payload INSERT de `js/ingestion.js` mis à jour. Voir `galactus-decisions.md` entrée 31.
+- **Récurrent** : N/A (dette soldée).
 
 ### Warning console Tailwind CDN (2026-05-22)
 
@@ -82,21 +81,32 @@ Convention : **P1** = critique (bloque la prod), **P2** = important (à fixer pr
 - **Fix prévu** : si volume devient gênant, intégrer un input mot de passe optionnel dans la subview home (`pages.length > 0`). Improbable Sprint 3-4 (occurrence rare au volume Pierre).
 - **Récurrent** : potentiellement, selon types de fournisseurs (loueur immobilier, banque, EDF…).
 
-### Édition impossible pendant le mode rafale Sprint 2 (2026-05-26)
+### ✅ RÉSOLU — Édition impossible pendant le mode rafale Sprint 2 (2026-05-26 → 2026-05-29)
 
-- **Symptôme** : Pierre commence une rafale, valide 3 pièces, se rend compte que la pièce 2 avait une erreur. Pas de back possible Sprint 2.
-- **Cause racine** : la vue Pièces (`#/pieces`) n'est qu'un placeholder Sprint 2. La modal édition arrive Sprint 3.
-- **Contournement Sprint 2** : toast info au démarrage rafale ("Mode rafale : édition disponible Sprint 3 via vue Pièces"). Pierre prend l'habitude de re-vérifier chaque pièce avant "Valider et suivante".
-- **Fix prévu** : Sprint 3 — vue Pièces avec modal édition complète permet de rectifier après coup, y compris pour pièces ingérées en rafale.
-- **Récurrent** : oui pendant tout le Sprint 2.
+- **Symptôme** : Pierre valide une rafale, repère une erreur sur une pièce passée, pas de back Sprint 2.
+- **Cause racine** : la vue Pièces (`#/pieces`) n'était qu'un placeholder Sprint 2.
+- **Fix appliqué (Sprint 3)** : vue Pièces + modal édition complète → rectification après coup de n'importe quelle pièce (y compris ingérée en rafale), avec recompose du nom de fichier si donnée clé.
+- **Récurrent** : non (résolu).
 
-### Bouton "Créer quand même" du modal doublon = disabled cosmétique (2026-05-26)
+### 🟡 PARTIEL — Bouton "Créer quand même" du modal doublon (2026-05-26 → migration faite 2026-05-29)
 
-- **Symptôme** : Pierre voit un bouton "Créer quand même (Sprint 3)" grisé dans le modal doublon. Ne fait rien.
-- **Cause racine** : contrainte UNIQUE sur `pieces.hash_md5` ferait planter l'INSERT si force-create.
-- **Contournement** : tooltip "Disponible Sprint 3 (gestion collisions hash)" explicite la raison. Pierre clique "Annuler" pour repartir.
-- **Fix prévu** : Sprint 3 — migration mineure `ALTER TABLE pieces ADD COLUMN hash_collision_n smallint DEFAULT 0;` + `DROP CONSTRAINT pieces_hash_md5_key;` + `ADD CONSTRAINT UNIQUE (hash_md5, hash_collision_n);`. Logique JS : `hash_collision_n = await max(...) + 1` si force-create. Voir `galactus-decisions.md` entrée 17.
-- **Récurrent** : non, deux cas rares (factures identiques montants mais dates différentes).
+- **Symptôme** : bouton "Créer quand même" grisé dans le modal doublon.
+- **Cause racine** : contrainte `UNIQUE (hash_md5)` ferait planter l'INSERT si force-create.
+- **Fix appliqué (Sprint 3, partiel)** : migration DB faite — `hash_collision_n int DEFAULT 0` + `DROP pieces_hash_md5_key` + `ADD UNIQUE (hash_sha256, hash_collision_n)` (`20260529181525`). **Reste à faire (Sprint 3.5)** : la logique JS (`hash_collision_n = max(...)+1` si force-create) dans `ingestion.js` — hors-scope Sprint 3 (vues Pièces/Dashboard). Le bouton reste disabled jusque-là. Voir `galactus-decisions.md` entrée 31.
+- **Récurrent** : non (cas rare : factures montants identiques, dates différentes).
+
+### ✅ RÉSOLU — `justificatif_url` = URL signée 1h périmée (finding B, 2026-05-29)
+
+- **Symptôme** : previews de justificatif mortes après 1h (URL signée stockée en base).
+- **Fix appliqué (Sprint 3)** : colonne `justificatif_path` (chemin storage) + signature à la volée (`signJustificatif`). Backfill des 14 legacy. `ingestion.js` écrit le chemin capturé, plus jamais d'URL signée stockée. Voir `galactus-decisions.md` entrée 30.
+- **Récurrent** : non.
+
+### ✅ RÉSOLU — `listFournisseursRecurrents()` triait sur colonne inexistante (2026-05-29)
+
+- **Symptôme** : bug latent — `.order('nom_canonique')` aurait renvoyé un 400 (la colonne réelle est `nom`). Masqué jusqu'ici car la table était vide.
+- **Cause racine** : nom de colonne erroné dans le helper `js/supabase.js`.
+- **Fix appliqué (Sprint 3)** : `.order('nom')`. Détecté au moment du seed des 6 fournisseurs (qui rendait le tri effectif).
+- **Récurrent** : non.
 
 ### Token GitHub `ghp_k498...` était exposé dans `.git/config` legacy (2026-05-22)
 

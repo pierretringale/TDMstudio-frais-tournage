@@ -200,3 +200,38 @@ Une entrée par décision structurante. Datée. Avec **Raison** + **Conséquence
 - **Décision** : (a) bouton "Annuler" sur le staging (mobile+desktop, → `resetForm()`) et sur la validation (→ `exitRafale(); resetForm(); subview='home'`) ; le "← Retour" existant est conservé (revient en gardant les pages). (b) Garde dans `startOCR` : `!window.isSecureContext || !crypto.subtle` → toast clair + abort.
 - **Raison** : réutilise `resetForm()` (zéro nouvelle logique) ; transforme une erreur cryptique en message actionnable. Impact prod nul pour la garde (HTTPS).
 - **Conséquence si on change** : si Sprint 3 ajoute "skip cette pièce sans quitter la rafale", distinguer ce comportement du "Annuler" actuel (qui sort de rafale).
+
+### 30. `justificatif_path` — découplage emplacement réel / nom d'affichage (Sprint 3, D1, 2026-05-29)
+
+- **Contexte** : `justificatif_url` stockait une URL signée expirant en 1h → toutes les previews mortes après (finding B). La vue Pièces affiche justement le justificatif.
+- **Décision** : nouvelle colonne `justificatif_path` (chemin storage `bucket/objet`, ex. `galactus-output/2026-…pdf` ou `galactus-input/…` pour les 14 legacy). Source de vérité unique, **signée à la volée** (`signJustificatif`). `justificatif_url` déprécié, plus jamais écrit. **Principe d'or** : tout `*_path` écrit en base est la variable EXACTE passée à `storage.upload(key,…)`, jamais reconstruite ; et `justificatif_path` (emplacement réel) n'est JAMAIS recalculé depuis `composeFilename()` — il reste découplé de `nom_fichier_normalise` (nom d'affichage/export).
+- **Raison** : une signature à la volée ne périme jamais ; le découplage évite les liens morts quand on édite une métadonnée.
+- **Conséquence si on change** : si un jour on déplace physiquement le PDF (rename storage), il faut mettre à jour `justificatif_path` au moment du `move` — pas avant.
+
+### 31. Migration de fondation hash — rename + collisions (Sprint 3, D2/D3, 2026-05-29)
+
+- **Contexte** : dette `hash_md5` (contient du SHA-256) + contrainte `UNIQUE (hash_md5)` qui bloquait tout "Créer quand même".
+- **Décision** : migration unique — `RENAME COLUMN hash_md5 → hash_sha256`, `ADD hash_collision_n int NOT NULL DEFAULT 0`, drop de la contrainte simple, `ADD UNIQUE (hash_sha256, hash_collision_n)`. Migrations versionnées local↔remote (`20260529181525`, `20260529181711`). Réactivation du **bouton** "Créer quand même" = hors-scope (touche `ingestion.js`) → Sprint 3.5.
+- **Raison** : fenêtre idéale (coût quasi nul), solde la dette P3 et débloque la gestion de collisions sans toucher au flux d'ingestion ce sprint.
+- **Conséquence si on change** : Sprint 3.5 incrémentera `hash_collision_n` pour insérer un doublon volontaire ; ne jamais revenir à un UNIQUE simple.
+
+### 32. Anti-double-comptage NDF — ensembles disjoints (Sprint 3, 2026-05-29)
+
+- **Contexte** : risque de sommer à la fois les `ndf` individuels ET le `ndf-mois` de synthèse (TVA déductible, KPI).
+- **Décision** : la dépense déductible additionne les `ndf` dont `statut != 'consolide_dans_ndf_mois'` **et** les `ndf-mois`. Ces deux ensembles sont **disjoints par construction** (le ndf consolidé est exclu par le filtre, le ndf-mois le remplace) — ce n'est pas un choix de catégorie exclusif. **Réalité Sprint 3** : aucun `ndf-mois` n'existe (consolidation = Sprint 4), donc le déductible se réduit à Σ `ndf` du mois. MIX affiché tel quel (« à ventiler », Indy tranche).
+- **Raison** : intégrité comptable du Pré-CA3 sans dépendre d'une logique exclusive fragile.
+- **Conséquence si on change** : l'intégrité dépendra du marquage `consolide_dans_ndf_mois` qu'apportera la consolidation Sprint 4 ; tester l'addition une fois des `ndf-mois` réels présents.
+
+### 33. Vue Pièces — "Voir à la demande" + rename DB-only différé (Sprint 3, D4/§4.3, 2026-05-29)
+
+- **Contexte** : (D4) charger des vignettes pour beaucoup de lignes est lourd, et le transform image Supabase ne miniaturise pas les PDF (majoritaires). (§4.3) éditer une donnée clé change le nom de fichier.
+- **Décision** : (D4) **pas de vignette** dans le tableau — bouton "Voir" qui signe à la demande, preview full-res dans le modal (`signJustificatifsBatch` dé-scopé pour éviter le code mort). (§4.3) le modal recompose `nom_fichier_normalise` **en base seulement** ; le PDF physique dans `galactus-output` n'est PAS déplacé → rename physique différé à l'export Sprint 4.
+- **Raison** : robustesse (marche PDF comme image, toujours frais) et zéro surface d'échec storage à chaque édition.
+- **Conséquence si on change** : Sprint 4 (export) devra (re)générer le fichier au nom courant ; tant qu'on n'exporte pas, `justificatif_path` peut pointer un nom différent de `nom_fichier_normalise` — c'est voulu.
+
+### 34. Alertes fournisseurs récurrents dormantes (Sprint 3, A2, 2026-05-29)
+
+- **Contexte** : 6 fournisseurs seedés avec `derniere_facture_date = NULL`. Rien en Sprint 3 ne met cette date à jour (ingestion limitée au finding B, CRUD = Sprint 4).
+- **Décision** : assumer des alertes **dormantes** (les 6 restent "jamais ingéré") plutôt que mordre dans `ingestion.js` ce sprint. Backlog : câbler `derniere_facture_date` à l'ingestion sur match de slug.
+- **Raison** : sprint propre (périmètre Pièces/Dashboard), évite un changement non testé dans le flux d'ingestion.
+- **Conséquence si on change** : dès que le câblage existe, la logique d'alerte (seuils 35/95/380 j, ⏳ < 5j de l'échéance) s'activera sans autre modif Dashboard.

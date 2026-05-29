@@ -4,9 +4,9 @@
 
 | Élément | État |
 |---|---|
-| Phase | Sprint 2 testé & validé end-to-end (2026-05-29) — **8/8 tests verts**. Prompt OCR **v5** déployé, fix RLS storage appliqué, fixes client (séparateur point, boutons Annuler, garde crypto.subtle). |
-| Prochaine étape | Sprint 3 — Vue Pièces + Vue Dashboard (~4h). Intégrer les findings du test run (justificatif_url URL signée 1h → stocker le chemin + signer à la volée ; justificatif multi-page → pointer output consolidé ; check doublon AVANT l'OCR ; queue mini-rafale batch). Détail dans `~/.claude/.../memory/galactus-fix-prompt-v5-ocr.md`. |
-| Bloquant | Aucun. Test 2 (OCR photo iPhone end-to-end) différé : à valider une fois galactus servi en HTTPS (crypto.subtle requiert un secure context — cf ERREURS CONNUES). |
+| Phase | **Sprint 3 livré & validé (2026-05-29)** — vues **Pièces** + **Dashboard** fonctionnelles sur la vraie DB (14 legacy + suppression testée OK). Migrations appliquées : `justificatif_path` (signature à la volée, fin du lien mort 1h), dette `hash_md5`→`hash_sha256` soldée, `hash_collision_n` + UNIQUE composite. 6 fournisseurs récurrents seedés. |
+| Prochaine étape | **Sprint 3.5** : réactiver le bouton "Créer quand même" du modal doublon (la migration `hash_collision_n` est faite, reste la logique `ingestion.js`). Câbler `derniere_facture_date` à l'ingestion sur match de slug (réveille les alertes récurrents, aujourd'hui dormantes). Puis **Sprint 4** — Vue Exports + 3 Edge Functions. |
+| Bloquant | Aucun. Test 2 (OCR photo iPhone end-to-end) toujours différé : à valider une fois galactus servi en HTTPS (crypto.subtle requiert un secure context — cf ERREURS CONNUES). Sprint sécu RLS 39 tables avant prod données compta. |
 | À NE PAS FAIRE | Pas React (Alpine.js + Tailwind seulement). Pas d'appel direct Indy (pas d'API publique). Pas multi-user. RLS hors-scope galactus mais critique en sprint sécu parallèle S23-24. Suffixe activité (TDM/VUM/MIX) obligatoire sur chaque pièce. Pas de git push pendant upload actif. 5 catégories CHECK figées (`fournisseur`, `ndf`, `materiel`, `ndf-mois`, `vente`). Charte TDM v1.1 PAS applicable, palette cosmic libre. Pas de quote-part TVA fine (Indy s'en charge). Pas de framework de composants lourd, Tailwind utility classes inline. |
 | URL | GitHub Pages temporaire (`pierretringale.github.io/galactus`) — domaine prod cible : `galactus.tdmstudio.fr` (CNAME Squarespace, Sprint 5) |
 | Repo GitHub | `pierretringale/galactus` (renommé depuis `TDMstudio-frais-tournage` le 2026-05-22) |
@@ -65,14 +65,15 @@ galactus/
 
 | Route / Élément | Description | État | Sprint |
 |---|---|---|---|
-| `#/ingestion` (défaut) | Vue Ingestion bout en bout : capture/drop → OCR → validation → INSERT pieces + uploads buckets | ✅ Actif | Sprint 2 |
-| `#/dashboard` | Vue Dashboard (placeholder striped) | 🟡 Stub | Sprint 3 |
-| `#/pieces` | Vue Pièces (placeholder striped) | 🟡 Stub | Sprint 3 |
+| `#/ingestion` (défaut) | Vue Ingestion bout en bout : capture/drop → OCR → validation → INSERT pieces + uploads buckets. Écrit désormais `justificatif_path` (chemins capturés, plus d'URL signée stockée) | ✅ Actif | Sprint 2 / 3 |
+| `#/dashboard` | 5 KPI (CA YTD, dépenses TDM/VUM + delta M-1, à uploader Indy, NDF mois) + bannière TVA/Pré-CA3 (MIX « à ventiler ») + fournisseurs récurrents (alertes) + graphes SVG vanilla (barres 12 mois stacked, camembert année). Clic KPI → Pièces pré-filtrée | ✅ Actif | Sprint 3 |
+| `#/pieces` | Tableau desktop / cards mobile, filtres+tri **serveur** (recherche, catégorie/activité/statut multi, période, payé), footer totaux sticky, sélection multiple + 3 actions groupées (uploadé Indy, catégorie masse, suppression), modal édition (recompose `nom_fichier_normalise` DB-only, warning Indy, « Voir » justificatif signé à la volée), suppression ligne+fichiers | ✅ Actif | Sprint 3 |
 | `#/exports` | Vue Exports (placeholder striped) | 🟡 Stub | Sprint 4 |
+| Helpers `supabase.js` Sprint 3 | `listPieces` enrichi (multi-`in`, recherche `or.ilike` sanitizée, payé, tri serveur), `signJustificatif`, `bulkUpdatePieces` (`.select()`), `supprimerPieceComplete` (fichiers+ligne) | ✅ Actif | Sprint 3 |
 | Edge Function `analyze-receipt` **v5** | OCR multi-pages Claude Sonnet 4.6, schéma enrichi. v5 (2026-05-29) : `reference_fournisseur` conditionnelle (facture formelle + n° préfixé + récurrent/≥100€ + conf≥0.7, verbatim), `description` forcée FR, hint Anthropic→MIX. max_tokens 2500 | ✅ Actif | Sprint 2 / 2.5 |
 | Boutons "Annuler" ingestion | Staging (vide les pages) + écran validation (abandonne la pièce + sort de rafale). Réutilisent `resetForm()` | ✅ Actif | Sprint 2.5 |
 | Subview rafale | Mode rafale Pierre (compteur ascendant, tab bar masquée via `Alpine.store('app').rafaleMode`) | ✅ Actif | Sprint 2 |
-| Modal doublon | Détection hash SHA-256 + carte d'identité pièce existante. Boutons "Voir détail" / "Créer quand même" disabled Sprint 3 | ✅ Actif (limité) | Sprint 2 |
+| Modal doublon | Détection hash SHA-256 + carte d'identité pièce existante. "Voir dans Pièces" **réactivé** (nav + pré-filtre fournisseur). "Créer quand même" reste disabled → Sprint 3.5 (logique `ingestion.js`) | ✅ Actif (limité) | Sprint 2 / 3 |
 | Vortex loader OCR | Overlay plein écran `#0b0a14` + 4 anneaux concentriques multi-vitesses + doc avalé + barre progression | ✅ Actif | Sprint 2 |
 | FilenamePreview live | Background ink + 5 segments colorés mono mis à jour à chaque keystroke (Alpine x-text) | ✅ Actif | Sprint 2 |
 | `#/_demo` | Page démo Design System (cachée nav, référence visuelle pérenne) | ✅ Actif | Sprint 1 |
@@ -97,6 +98,14 @@ galactus/
 | Édition pendant rafale | Impossible Sprint 2 — Pierre se trompe à la pièce N en rafale, pas de back. Toast info au démarrage rafale. Édition disponible Sprint 3 via vue Pièces. | Sprint 2 / Sprint 3 |
 | Upload bucket échoue après INSERT OK | Pièce reste en DB avec `justificatif_url='pending'`, pas d'orphelin fichier. Sprint 3 : bouton "Réuploader justificatif" dans modal édition. | Sprint 2 / Sprint 3 |
 | Accès en HTTP non sécurisé (IP LAN type `http://192.168.x.x`) | `crypto.subtle` indisponible hors secure context → garde dans `startOCR` : toast clair + abort, pas de crash. PROD = HTTPS donc OK. Test iPhone local : passer par tunnel HTTPS. | Sprint 2.5 |
+| `justificatif_path` NULL (pièce non backfillée ou upload échoué) | `signJustificatif` renvoie null → vignette/preview = placeholder "justificatif indisponible", pas de crash. | Sprint 3 |
+| Justificatif servi après > 1h de session | Plus de lien mort : on **signe à la volée** au clic/ouverture (jamais d'URL signée stockée). | Sprint 3 |
+| Suppression : fichier storage déjà absent | `supprimerPieceComplete` log le warning mais ne bloque pas la suppression DB (best-effort). Bucket legacy `justificatifs-frais` jamais touché. | Sprint 3 |
+| Filtre "payé" hors contexte | Grisé/inactif tant que `categorie=fournisseur` n'est pas dans la sélection (réinitialisé si fournisseur quitte la sélection). | Sprint 3 |
+| Édition d'une donnée clé | Recompose `nom_fichier_normalise` en base ; **`justificatif_path` inchangé** (rename physique du PDF différé à l'export Sprint 4). Warning jaune si pièce déjà `uploade_indy`. | Sprint 3 |
+| Alertes fournisseurs récurrents dormantes | `derniere_facture_date` jamais écrite en Sprint 3 (seed NULL, ingestion = finding B seul) → les 6 restent "jamais ingéré". Câblage = backlog Sprint 3.5. | Sprint 3 |
+| Anti-double-comptage NDF | Déductible = `ndf` non consolidés **+** `ndf-mois` (ensembles disjoints). Aucun `ndf-mois` n'existe avant Sprint 4 → déductible = Σ `ndf` du mois. | Sprint 3 |
+| Graphes SVG via Alpine | `x-for` ne crée pas les nœuds dans le namespace SVG → SVG généré en **chaîne JS** injectée via `x-html`. Camembert : `circle` plein si une seule activité (≥99,9 %). | Sprint 3 |
 
 ## JOURNAL DES DÉCISIONS TECHNIQUES
 
@@ -118,3 +127,7 @@ Voir `galactus-decisions.md` (journal append-only).
 | 2026-05-26 | 📐 Bouton "Créer quand même" du modal doublon = disabled cosmétique | Contrainte UNIQUE sur `hash_md5` planterait l'INSERT. Sprint 2 = bouton désactivé + tooltip "Disponible Sprint 3". | Implémentation fix Sprint 3 via colonne `hash_collision_n` + ALTER UNIQUE → UNIQUE(hash_md5, hash_collision_n). | N/A (dette planifiée) |
 | 2026-05-29 | 🔴 Uploads Storage en 400 ("new row violates row-level security policy") — INSERT pieces OK mais `justificatif_url` reste `pending` | Les 8 policies `galactus_*` sur `storage.objects` étaient scopées rôle **`anon`** (héritage frais-tournage sans login). Le Sprint 1 a introduit l'auth Supabase → uploads en rôle **`authenticated`** → aucune policy ne matchait. `pieces` passait car RLS désactivée dessus. | Migration `galactus_storage_policies_to_authenticated` : ALTER POLICY ×8 → `authenticated`. Vérifié : ingestion bout en bout OK. **Leçon : tout ajout d'auth doit re-vérifier les policies storage.** | Non (mais à re-checker si nouveau bucket) |
 | 2026-05-29 | ⚠️ `crypto.subtle.digest` → "undefined is not an object" sur iPhone en test local | `crypto.subtle` (Web Crypto) indisponible hors secure context. `http://192.168.x.x` (IP LAN HTTP) n'est pas un secure context ; `localhost` et HTTPS le sont. | Garde défensive dans `startOCR` (`!window.isSecureContext || !crypto.subtle` → toast + abort). Impact PROD nul (GitHub Pages + domaine = HTTPS). Test iPhone local = tunnel HTTPS. | Non |
+| 2026-05-29 | 🔴 `justificatif_url` = URL signée 1h → liens preview morts après expiration | Sprint 2 stockait une URL signée expirante en base (finding B test run). | Colonne `justificatif_path` (chemin storage `bucket/objet`) + `signJustificatif()` à la volée. Backfill déterministe des 14 legacy. `ingestion.js` écrit le path capturé (principe d'or), plus jamais d'URL signée stockée. Migration `galactus_sprint3_pieces_dashboard`. | Non |
+| 2026-05-29 | 📐 Dette `hash_md5` (contient du SHA-256) — **SOLDÉE** | Voir entrée 2026-05-26. | `ALTER ... RENAME COLUMN hash_md5 TO hash_sha256` (migration Sprint 3). Helpers + `ingestion.js` mis à jour. | N/A (dette soldée) |
+| 2026-05-29 | 🟢 Bouton "Créer quand même" — migration DB faite | Voir entrée 2026-05-26. | `hash_collision_n` + `UNIQUE (hash_sha256, hash_collision_n)` appliqués (la contrainte simple bloquait l'INSERT). **Le bouton reste disabled** : logique de collision dans `ingestion.js` = Sprint 3.5. | N/A (dette planifiée) |
+| 2026-05-29 | 🐛 `listFournisseursRecurrents()` triait sur `nom_canonique` (colonne inexistante → 400) | Nom de colonne erroné dans le helper (la vraie colonne est `nom`). Latent car la table était vide jusqu'au seed Sprint 3. | Fix `.order('nom')`. | Non |

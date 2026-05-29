@@ -85,3 +85,58 @@ export function toast(message, type = 'info') {
     detail: { message, type }
   }));
 }
+
+// === COMPOSE FILENAME SEGMENTS (preview live colorée) ===
+/**
+ * Décompose le nom de fichier normalisé en segments pour la FilenamePreview live
+ * (chaque segment stylé selon qu'il est vide ou rempli). SOURCE UNIQUE partagée
+ * par la vue Ingestion (Sprint 2) et la vue Pièces (Sprint 3) — toute évolution
+ * de la convention (ex. séparateur décimal point, fix Sprint 2.5) reste cohérente
+ * entre les deux previews. Aligné sur composeFilename().
+ *
+ * @param {Object} fields - { date_piece, fournisseur_slug, fournisseur, montant_ttc, categorie, activite }
+ * @returns {Object} segments + marqueurs *Empty pour styles conditionnels.
+ */
+export function computeFilenameSegments(fields) {
+  const f = fields || {};
+  const date = f.date_piece ? formatDate(f.date_piece, 'iso') : '';
+  const vendor = f.fournisseur_slug || (f.fournisseur ? slugify(f.fournisseur) : '');
+  const montant = (f.montant_ttc !== null && f.montant_ttc !== '' && !isNaN(f.montant_ttc))
+    ? Number(f.montant_ttc).toFixed(2)
+    : '';
+  const cat = f.categorie || '';
+  const act = f.activite || '';
+  return {
+    date: date || 'sans-date',
+    vendor: vendor || 'sans-fournisseur',
+    montant: montant || '0.00',
+    cat: cat || 'sans-cat',
+    act: act || 'TDM',
+    dateEmpty: !date,
+    vendorEmpty: !vendor,
+    montantEmpty: !montant,
+    catEmpty: !cat,
+    actEmpty: !act,
+  };
+}
+
+// === AGRÉGATEUR MONTANTS ===
+// Somme HT / TVA / TTC + count sur une liste de pièces (lignes filtrées déjà chargées).
+// Utilisé par le footer totaux (Pièces) et les KPI/bannière TVA (Dashboard).
+// Les montants NULL comptent comme 0 ; arrondi 2 décimales pour éviter le bruit flottant.
+export function sumMontants(pieces) {
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const list = Array.isArray(pieces) ? pieces : [];
+  let sumHt = 0, sumTva = 0, sumTtc = 0;
+  for (const p of list) {
+    sumHt += Number(p.montant_ht) || 0;
+    sumTva += Number(p.montant_tva) || 0;
+    sumTtc += Number(p.montant_ttc) || 0;
+  }
+  return {
+    count: list.length,
+    sumHt: round2(sumHt),
+    sumTva: round2(sumTva),
+    sumTtc: round2(sumTtc),
+  };
+}

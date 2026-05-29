@@ -87,6 +87,10 @@
   <!-- Vue Ingestion Sprint 2 (window.ingestion + composant Alpine) -->
   <script type="module" src="js/ingestion.js"></script>
 
+  <!-- Vues Sprint 3 (window.pieces / window.dashboard) -->
+  <script type="module" src="js/pieces.js"></script>
+  <script type="module" src="js/dashboard.js"></script>
+
   <!-- pdf-lib UMD pour conversion image→PDF + concat multi-pages (Sprint 2) -->
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
@@ -656,10 +660,9 @@
               </div>
 
               <div class="flex flex-col md:flex-row gap-2">
-                <button disabled
-                        title="Disponible Sprint 3 (vue Pièces)"
-                        class="flex-1 border-[1.5px] border-faint text-faint rounded px-4 py-3 font-bold uppercase tracking-wider text-xs opacity-60 cursor-not-allowed">
-                  Voir détail (Sprint 3)
+                <button @click="if (window.Alpine?.store) window.Alpine.store('app').piecesPrefilter = { recherche: doublon.existing?.fournisseur || '' }; closeDoublon(); resetForm(); subview = 'home'; location.hash = '#/pieces';"
+                        class="flex-1 border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs hover:bg-soft">
+                  Voir dans Pièces
                 </button>
                 <button @click="closeDoublon(); resetForm(); subview = 'home';"
                         class="flex-1 border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs">
@@ -704,29 +707,462 @@
         </section>
       </template>
 
-      <!-- =================== VUE DASHBOARD =================== -->
+      <!-- =================== VUE DASHBOARD (Sprint 3) =================== -->
       <template x-if="currentView === 'dashboard'">
-        <section class="p-5 md:p-8 max-w-5xl">
+        <section x-data="dashboard()" x-init="init()" class="p-5 md:p-8 max-w-6xl">
           <header class="mb-6">
             <h1 class="font-display font-black text-4xl md:text-5xl uppercase">DASHBOARD</h1>
-            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">MAI 2026 · J22/31 — Sprint 3</p>
+            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1" x-text="moisLabel"></p>
           </header>
-          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
-            <span class="font-mono text-mid uppercase text-sm">KPI mensuels · à venir Sprint 3</span>
+
+          <div x-show="loading" class="placeholder-striped h-64 flex items-center justify-center">
+            <span class="font-mono text-mid uppercase text-sm">Calcul des KPI…</span>
+          </div>
+
+          <div x-show="!loading && data" x-cloak class="flex flex-col gap-6">
+
+            <!-- ============== BANNIÈRE TVA + PRÉ-CA3 ============== -->
+            <div class="nebula-gradient rounded-lg p-5 md:p-6 relative overflow-hidden">
+              <div class="absolute inset-0 star-field opacity-40 pointer-events-none"></div>
+              <div class="relative">
+                <div class="font-mono text-[10px] uppercase tracking-widest text-gold mb-3">TVA du mois · Pré-CA3 — estimation (Indy tranche)</div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-white">
+                  <div>
+                    <div class="font-mono text-[10px] uppercase text-faint">Collectée</div>
+                    <div class="kpi-value text-3xl md:text-4xl text-white" x-text="fmt(data.tva.collectee)"></div>
+                  </div>
+                  <div>
+                    <div class="font-mono text-[10px] uppercase text-faint">Déductible</div>
+                    <div class="kpi-value text-3xl md:text-4xl text-white" x-text="fmt(data.tva.deductible)"></div>
+                  </div>
+                  <div>
+                    <div class="font-mono text-[10px] uppercase text-faint">Solde estimé</div>
+                    <div class="kpi-value text-3xl md:text-4xl" :class="data.tva.solde >= 0 ? 'text-green' : 'text-accent-soft'" x-text="fmt(data.tva.solde)"></div>
+                  </div>
+                  <div>
+                    <div class="font-mono text-[10px] uppercase text-faint">Ventilation déductible</div>
+                    <div class="font-mono text-[11px] mt-1 leading-relaxed">
+                      <div>TDM <span class="text-gold" x-text="fmt(data.tva.deductibleTdm)"></span></div>
+                      <div>VUM <span class="text-gold" x-text="fmt(data.tva.deductibleVum)"></span></div>
+                      <div>MIX <span class="text-cyan" x-text="fmt(data.tva.deductibleMix)"></span> <span class="text-faint">(à ventiler)</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div x-show="data.tva.aucunNdfMois" class="font-mono text-[9px] uppercase tracking-wider text-faint mt-3">
+                  Déductible = Σ TVA des pièces du mois (aucune consolidation NDF avant Sprint 4)
+                </div>
+              </div>
+            </div>
+
+            <!-- ============== 5 KPI CARDS ============== -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+              <button @click="goPiecesFiltre({categories:['vente']})"
+                      class="text-left border-[1.5px] border-gold rounded-md p-4 bg-gold/10 hover:bg-gold/20 transition-colors">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">CA cumulé 2026</div>
+                <div class="kpi-value text-3xl md:text-4xl mt-1" x-text="fmt(data.kpi.caYtd)"></div>
+                <div class="font-mono text-[10px] text-amber mt-1">dont mois <span x-text="fmt(data.kpi.caMois)"></span></div>
+              </button>
+
+              <button @click="goPiecesFiltre({activites:['TDM']})"
+                      class="text-left border border-rule rounded-md p-4 bg-paper hover:bg-soft transition-colors">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">Dépenses TDM</div>
+                <div class="kpi-value text-3xl md:text-4xl mt-1" x-text="fmt(data.kpi.depTdm)"></div>
+                <div class="font-mono text-[10px] mt-1" :class="deltaClass(data.kpi.depTdmDelta)" x-text="deltaLabel(data.kpi.depTdmDelta) + ' vs M-1'"></div>
+              </button>
+
+              <button @click="goPiecesFiltre({activites:['VUM']})"
+                      class="text-left border border-rule rounded-md p-4 bg-paper hover:bg-soft transition-colors">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">Dépenses VUM</div>
+                <div class="kpi-value text-3xl md:text-4xl mt-1" x-text="fmt(data.kpi.depVum)"></div>
+                <div class="font-mono text-[10px] mt-1" :class="deltaClass(data.kpi.depVumDelta)" x-text="deltaLabel(data.kpi.depVumDelta) + ' vs M-1'"></div>
+              </button>
+
+              <button @click="goExports()"
+                      class="text-left rounded-md p-4 bg-paper border-[1.5px] transition-colors"
+                      :class="data.kpi.aUploader > 5 ? 'border-accent hover:bg-accent/5' : 'border-ink hover:bg-soft'">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">À uploader Indy</div>
+                <div class="kpi-value text-3xl md:text-4xl mt-1" :class="data.kpi.aUploader > 5 ? 'text-accent' : ''" x-text="data.kpi.aUploader"></div>
+                <div class="font-mono text-[10px] text-mid mt-1">→ Exports</div>
+              </button>
+
+              <button @click="goPiecesFiltre({categories:['ndf']})"
+                      class="text-left border border-rule rounded-md p-4 bg-paper hover:bg-soft transition-colors">
+                <div class="font-mono text-[10px] uppercase tracking-wider text-mid">NDF mois</div>
+                <div class="kpi-value text-3xl md:text-4xl mt-1" x-text="fmt(data.kpi.ndfTotal)"></div>
+                <div class="font-mono text-[10px] text-mid mt-1"><span x-text="data.kpi.ndfCount"></span> ligne(s) · <span x-text="data.kpi.ndfConsolide ? 'consolidée' : 'en cours'"></span></div>
+              </button>
+            </div>
+
+            <!-- ============== GRID 2 COLONNES : RÉCURRENTS + GRAPHES ============== -->
+            <div class="grid md:grid-cols-2 gap-6">
+
+              <!-- Fournisseurs récurrents -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <h2 class="font-display font-black text-xl uppercase">Fournisseurs récurrents</h2>
+                  <button disabled title="CRUD disponible Sprint 4"
+                          class="font-mono text-[9px] uppercase tracking-wider text-faint border border-faint rounded px-2 py-1 opacity-60 cursor-not-allowed">Gérer</button>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <template x-for="a in data.alerts" :key="a.nom">
+                    <div class="border-[1.5px] border-rule rounded p-3 bg-paper flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gold text-ink font-display font-black flex items-center justify-center text-xs" x-text="a.nom.charAt(0)"></div>
+                        <div>
+                          <div class="font-bold text-sm" x-text="a.nom"></div>
+                          <div class="font-mono text-[9px] uppercase tracking-wider text-mid"><span x-text="a.frequence"></span> · <span x-text="a.activite"></span></div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span x-text="etatIcon(a.etat)"></span>
+                        <span class="font-mono text-[9px] uppercase tracking-wider text-mid" x-text="a.label"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="data.alerts.length === 0" class="font-mono text-[11px] text-faint italic">Aucun fournisseur récurrent.</div>
+                </div>
+                <div class="font-mono text-[9px] uppercase tracking-wider text-faint mt-2">
+                  Alertes dormantes — la date de dernière facture sera câblée à l'ingestion (backlog)
+                </div>
+              </div>
+
+              <!-- Graphes -->
+              <div class="flex flex-col gap-6">
+                <div>
+                  <h2 class="font-display font-black text-xl uppercase mb-3">Dépenses · 12 mois</h2>
+                  <div class="border border-rule rounded-md p-3 bg-paper overflow-x-auto">
+                    <div x-html="data.bars.svg"></div>
+                    <div class="flex gap-4 mt-2 font-mono text-[9px] uppercase">
+                      <span class="flex items-center gap-1"><span class="w-2 h-2 inline-block" style="background:#1e1d18"></span>TDM</span>
+                      <span class="flex items-center gap-1"><span class="w-2 h-2 inline-block" style="background:#ffc857"></span>VUM</span>
+                      <span class="flex items-center gap-1"><span class="w-2 h-2 inline-block" style="background:#00d4ff"></span>MIX</span>
+                    </div>
+                    <div x-show="!data.bars.hasData" class="font-mono text-[10px] text-faint italic mt-1">Aucune dépense sur la période.</div>
+                  </div>
+                </div>
+                <div class="hidden md:block">
+                  <h2 class="font-display font-black text-xl uppercase mb-3">Répartition année</h2>
+                  <div class="border border-rule rounded-md p-3 bg-paper flex items-center gap-4">
+                    <div x-html="data.pie.svg"></div>
+                    <div class="flex flex-col gap-1 font-mono text-[10px]">
+                      <template x-for="s in data.pie.legend" :key="s.act">
+                        <div class="flex items-center gap-2">
+                          <span class="w-2 h-2 inline-block" :style="`background:${s.color}`"></span>
+                          <span x-text="s.act"></span>
+                          <span class="text-mid" x-text="s.pct + '%'"></span>
+                        </div>
+                      </template>
+                      <div x-show="data.pie.total === 0" class="text-faint">Aucune dépense</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </template>
 
-      <!-- =================== VUE PIÈCES =================== -->
+      <!-- =================== VUE PIÈCES (Sprint 3) =================== -->
       <template x-if="currentView === 'pieces'">
-        <section class="p-5 md:p-8 max-w-7xl">
-          <header class="mb-6">
-            <h1 class="font-display font-black text-4xl md:text-5xl uppercase">PIÈCES</h1>
-            <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">Sprint 3 — Filtres · Édition · Export ZIP</p>
-          </header>
-          <div class="placeholder-striped h-64 md:h-96 flex items-center justify-center">
-            <span class="font-mono text-mid uppercase text-sm">Tableau pièces · à venir Sprint 3</span>
+        <section x-data="pieces()" x-init="init()">
+
+          <!-- ============== HEADER + FILTRES STICKY ============== -->
+          <div class="sticky top-0 z-20 bg-paper border-b-2 border-ink p-5 md:px-8 md:py-5">
+            <header class="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <h1 class="font-display font-black text-3xl md:text-5xl uppercase">PIÈCES</h1>
+                <p class="font-mono text-[11px] uppercase tracking-wider text-mid mt-1">
+                  <span x-text="pieces.length"></span> pièce<span x-text="pieces.length > 1 ? 's' : ''"></span><span x-show="loading"> · chargement…</span>
+                </p>
+              </div>
+              <button x-show="hasActiveFilters" @click="clearFilters()"
+                      class="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-accent-soft border-[1.5px] border-accent rounded px-3 py-1 whitespace-nowrap">Effacer</button>
+            </header>
+
+            <input type="search" x-model="filters.recherche" @input="onSearchInput()"
+                   placeholder="Rechercher · fournisseur, description, référence"
+                   class="w-full border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent mb-3" />
+
+            <div class="flex flex-col gap-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-[9px] uppercase tracking-wider text-faint w-12">Cat.</span>
+                <template x-for="c in CATEGORIES" :key="c">
+                  <span class="chip-ingest" :class="chipOn('categories', c) ? 'chip-on' : ''" @click="toggleChip('categories', c)" x-text="c"></span>
+                </template>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-[9px] uppercase tracking-wider text-faint w-12">Act.</span>
+                <template x-for="a in ACTIVITES" :key="a">
+                  <span class="chip-ingest" :class="chipOn('activites', a) ? 'chip-on' : ''" @click="toggleChip('activites', a)" x-text="a"></span>
+                </template>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-[9px] uppercase tracking-wider text-faint w-12">Statut</span>
+                <template x-for="s in STATUTS" :key="s">
+                  <span class="chip-ingest" :class="chipOn('statuts', s) ? 'chip-on' : ''" @click="toggleChip('statuts', s)" x-text="statutLabel(s)"></span>
+                </template>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-[9px] uppercase tracking-wider text-faint w-12">Période</span>
+                <input type="date" x-model="filters.dateDebut" @change="onDateChange()"
+                       class="border border-rule rounded px-2 py-1 font-mono text-xs bg-paper focus:outline-none focus:border-accent" />
+                <span class="text-faint">→</span>
+                <input type="date" x-model="filters.dateFin" @change="onDateChange()"
+                       class="border border-rule rounded px-2 py-1 font-mono text-xs bg-paper focus:outline-none focus:border-accent" />
+                <span class="font-mono text-[9px] uppercase tracking-wider text-faint ml-2"
+                      :class="payeDisabled ? 'opacity-40' : ''">Payé</span>
+                <span class="chip-ingest" :class="[filters.paye==='oui' ? 'chip-on' : '', payeDisabled ? 'opacity-40 cursor-not-allowed' : '']" @click="setPaye('oui')">oui</span>
+                <span class="chip-ingest" :class="[filters.paye==='non' ? 'chip-on' : '', payeDisabled ? 'opacity-40 cursor-not-allowed' : '']" @click="setPaye('non')">non</span>
+              </div>
+            </div>
           </div>
+
+          <!-- ============== TABLEAU DESKTOP ============== -->
+          <div class="hidden md:block px-8 pt-4">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b-2 border-ink">
+                  <th class="py-2 w-8 text-left"><input type="checkbox" :checked="allVisibleSelected" @change="toggleSelectAll()" /></th>
+                  <th @click="setSort('date_piece')" class="cursor-pointer text-left font-mono text-[10px] uppercase tracking-wider text-mid py-2 select-none">Date<span x-text="sortArrow('date_piece')"></span></th>
+                  <th @click="setSort('fournisseur')" class="cursor-pointer text-left font-mono text-[10px] uppercase tracking-wider text-mid py-2 select-none">Fournisseur<span x-text="sortArrow('fournisseur')"></span></th>
+                  <th class="text-left font-mono text-[10px] uppercase tracking-wider text-mid py-2">Cat.</th>
+                  <th class="text-left font-mono text-[10px] uppercase tracking-wider text-mid py-2">Act.</th>
+                  <th @click="setSort('montant_ttc')" class="cursor-pointer text-right font-mono text-[10px] uppercase tracking-wider text-mid py-2 select-none">TTC<span x-text="sortArrow('montant_ttc')"></span></th>
+                  <th class="text-right font-mono text-[10px] uppercase tracking-wider text-mid py-2">HT</th>
+                  <th class="text-right font-mono text-[10px] uppercase tracking-wider text-mid py-2">TVA</th>
+                  <th @click="setSort('statut')" class="cursor-pointer text-left font-mono text-[10px] uppercase tracking-wider text-mid py-2 select-none">Statut<span x-text="sortArrow('statut')"></span></th>
+                  <th class="text-center font-mono text-[10px] uppercase tracking-wider text-mid py-2">Payé</th>
+                  <th class="text-right font-mono text-[10px] uppercase tracking-wider text-mid py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="p in pieces" :key="p.id">
+                  <tr class="border-b border-rule hover:bg-soft transition-colors" :class="isSelected(p.id) ? 'bg-soft' : ''">
+                    <td class="py-2"><input type="checkbox" :checked="isSelected(p.id)" @change="toggleSelect(p.id)" /></td>
+                    <td class="font-mono text-[11px] py-2" x-text="fmtDate(p.date_piece)"></td>
+                    <td class="font-semibold py-2" x-text="p.fournisseur"></td>
+                    <td class="py-2"><span :class="catBadge(p.categorie)" x-text="p.categorie"></span></td>
+                    <td class="py-2"><span :class="actBadge(p.activite)" x-text="p.activite"></span></td>
+                    <td class="text-right font-mono font-bold py-2 tabular" x-text="fmtMontant(p.montant_ttc)"></td>
+                    <td class="text-right font-mono text-mid py-2 tabular" x-text="fmtMontant(p.montant_ht)"></td>
+                    <td class="text-right font-mono text-mid py-2 tabular" x-text="fmtMontant(p.montant_tva)"></td>
+                    <td class="py-2"><span :class="statutBadge(p.statut)" x-text="statutLabel(p.statut)"></span></td>
+                    <td class="text-center py-2" x-text="p.paye_le ? '✓' : '—'"></td>
+                    <td class="text-right whitespace-nowrap py-2">
+                      <button @click="voirJustificatif(p)" title="Voir le justificatif" class="text-mid hover:text-accent px-1">👁</button>
+                      <button @click="openEdit(p)" title="Éditer" class="text-mid hover:text-ink px-1">✎</button>
+                      <button @click="confirmDelete(p)" title="Supprimer" class="text-mid hover:text-red px-1">🗑</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div x-show="!loading && pieces.length === 0" class="text-center py-12 font-mono text-sm text-mid uppercase tracking-wider">Aucune pièce</div>
+          </div>
+
+          <!-- ============== CARDS MOBILE ============== -->
+          <div class="md:hidden px-5 flex flex-col gap-3 mt-3 pb-4">
+            <div x-show="selectMode" class="font-mono text-[10px] uppercase tracking-wider text-accent">
+              <span x-text="selection.length"></span> sélectionnée(s) · appui long pour sélectionner
+            </div>
+            <template x-for="p in pieces" :key="p.id">
+              <div class="border-[1.5px] rounded-md p-4 bg-paper"
+                   :class="isSelected(p.id) ? 'border-accent' : 'border-rule'"
+                   @touchstart="startLongPress(p.id)" @touchend="cancelLongPress()" @touchmove="cancelLongPress()"
+                   @click="selectMode ? toggleSelect(p.id) : openEdit(p)">
+                <div class="flex items-start justify-between mb-2">
+                  <div>
+                    <div class="font-mono text-[10px] text-mid" x-text="fmtDate(p.date_piece)"></div>
+                    <div class="font-bold text-lg" x-text="p.fournisseur"></div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-mono font-bold" x-text="fmtMontant(p.montant_ttc)"></div>
+                    <div class="flex gap-1 justify-end mt-1">
+                      <span :class="catBadge(p.categorie)" x-text="p.categorie"></span>
+                      <span :class="actBadge(p.activite)" x-text="p.activite"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span :class="statutBadge(p.statut)" x-text="statutLabel(p.statut)"></span>
+                  <div class="flex items-center gap-3" x-show="!selectMode">
+                    <span x-show="p.paye_le" class="font-mono text-[10px] text-green">payé ✓</span>
+                    <button @click.stop="voirJustificatif(p)" class="font-mono text-[10px] uppercase text-mid hover:text-accent">👁 Voir</button>
+                  </div>
+                  <input x-show="selectMode" type="checkbox" :checked="isSelected(p.id)" @click.stop="toggleSelect(p.id)" />
+                </div>
+              </div>
+            </template>
+            <div x-show="!loading && pieces.length === 0" class="text-center py-12 font-mono text-sm text-mid uppercase tracking-wider">Aucune pièce</div>
+          </div>
+
+          <!-- ============== FOOTER STICKY : TOTAUX + ACTIONS ============== -->
+          <div class="sticky bottom-0 z-20 bg-ink text-paper px-5 md:px-8 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+               style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
+            <div class="font-mono text-[11px] uppercase tracking-wider flex flex-wrap gap-x-4 gap-y-1">
+              <span><span class="text-faint">N</span> <span x-text="totals.count"></span></span>
+              <span><span class="text-faint">Σ HT</span> <span class="tabular" x-text="fmtMontant(totals.sumHt)"></span></span>
+              <span><span class="text-faint">Σ TVA</span> <span class="tabular" x-text="fmtMontant(totals.sumTva)"></span></span>
+              <span class="text-gold"><span class="text-faint">Σ TTC</span> <span class="tabular" x-text="fmtMontant(totals.sumTtc)"></span></span>
+            </div>
+            <div x-show="selection.length > 0" class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-[10px] text-gold uppercase tracking-wider"><span x-text="selection.length"></span> sél.</span>
+              <button @click="marquerUploadeIndy()" :disabled="busy" class="border border-paper/50 rounded px-3 py-1 text-[10px] font-mono uppercase tracking-wider hover:bg-white/10 disabled:opacity-50">Uploadé Indy</button>
+              <button @click="openBulkCat()" :disabled="busy" class="border border-paper/50 rounded px-3 py-1 text-[10px] font-mono uppercase tracking-wider hover:bg-white/10 disabled:opacity-50">Catégorie</button>
+              <button @click="confirmDeleteSelection()" :disabled="busy" class="border border-red text-red rounded px-3 py-1 text-[10px] font-mono uppercase tracking-wider hover:bg-red/10 disabled:opacity-50">Supprimer</button>
+              <button @click="clearSelection()" class="text-[12px] font-mono uppercase text-faint hover:text-paper px-1">×</button>
+            </div>
+          </div>
+
+          <!-- ============== MODAL ÉDITION ============== -->
+          <div x-show="editModal.open" x-cloak class="modal-backdrop flex items-end md:items-center justify-center" @keydown.escape.window="closeEdit()">
+            <div class="bg-paper border-2 border-ink rounded-t-xl md:rounded-lg w-full max-w-[880px] mx-auto md:mx-4 max-h-[92vh] overflow-y-auto">
+              <div class="flex items-center justify-between p-5 border-b border-rule sticky top-0 bg-paper z-10">
+                <div class="font-display font-black text-2xl uppercase">Éditer la pièce</div>
+                <button @click="closeEdit()" class="text-mid hover:text-ink text-2xl leading-none">×</button>
+              </div>
+
+              <div class="md:flex" x-show="editModal.data">
+                <!-- Preview gauche -->
+                <div class="md:w-1/2 bg-soft p-5 flex flex-col">
+                  <div class="font-mono text-[10px] uppercase tracking-wider text-mid mb-2">Justificatif</div>
+                  <div class="border border-rule rounded bg-paper flex-1 min-h-[260px] flex items-center justify-center overflow-hidden">
+                    <template x-if="editModal.signing"><span class="font-mono text-[10px] text-mid">Signature…</span></template>
+                    <template x-if="!editModal.signing && editModal.previewUrl"><embed :src="editModal.previewUrl" class="w-full h-full min-h-[260px]" /></template>
+                    <template x-if="!editModal.signing && !editModal.previewUrl"><span class="font-mono text-[10px] text-faint px-4 text-center">Justificatif indisponible</span></template>
+                  </div>
+                  <button x-show="editModal.previewUrl" @click="window.open(editModal.previewUrl,'_blank','noopener')"
+                          class="mt-3 border-[1.5px] border-ink rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider hover:bg-paper">Ouvrir en grand</button>
+                </div>
+
+                <!-- Formulaire droite -->
+                <div class="md:w-1/2 p-5 flex flex-col gap-4">
+                  <div x-show="showIndyWarning" class="border-[1.5px] border-amber bg-yellow/20 rounded p-3 font-mono text-[11px] text-ink leading-relaxed">
+                    ⚠️ Cette pièce est marquée uploadée dans Indy. La modifier ne synchronise pas Indy.
+                  </div>
+
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Date</label>
+                    <input type="date" x-model="editModal.data.date_piece" class="border border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  </div>
+
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Fournisseur</label>
+                    <input type="text" x-model="editModal.data.fournisseur" @input="onEditFournisseurInput()" class="border border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                    <span class="font-mono text-[10px] text-faint" x-text="editModal.data.fournisseur_slug ? `→ ${editModal.data.fournisseur_slug}` : ''"></span>
+                  </div>
+
+                  <div class="flex flex-col gap-2">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Catégorie</label>
+                    <div class="flex flex-wrap gap-2">
+                      <template x-for="c in CATEGORIES_EDITABLES" :key="c">
+                        <span class="chip-ingest" :class="editModal.data.categorie === c ? 'chip-on' : ''" @click="selectEditCategorie(c)" x-text="c"></span>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col gap-2">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Activité</label>
+                    <div class="flex flex-wrap gap-2">
+                      <template x-for="a in ACTIVITES" :key="a">
+                        <span class="chip-ingest" :class="editModal.data.activite === a ? 'chip-on' : ''" @click="selectEditActivite(a)" x-text="a"></span>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-3 gap-3">
+                    <div class="flex flex-col gap-1">
+                      <label class="text-[11px] font-mono uppercase tracking-wider text-mid">HT €</label>
+                      <input type="number" step="0.01" x-model.number="editModal.data.montant_ht" class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label class="text-[11px] font-mono uppercase tracking-wider text-mid">TVA €</label>
+                      <input type="number" step="0.01" x-model.number="editModal.data.montant_tva" class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label class="text-[11px] font-mono uppercase tracking-wider text-mid">TTC €</label>
+                      <input type="number" step="0.01" x-model.number="editModal.data.montant_ttc" class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="flex flex-col gap-1">
+                      <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Taux TVA %</label>
+                      <input type="number" step="0.01" x-model.number="editModal.data.taux_tva" class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Statut</label>
+                      <select x-model="editModal.data.statut" class="border border-ink rounded-sm px-2 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent">
+                        <template x-for="s in STATUTS" :key="s"><option :value="s" x-text="statutLabel(s)"></option></template>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Référence fournisseur</label>
+                    <input type="text" x-model="editModal.data.reference_fournisseur" class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent" />
+                  </div>
+
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-mono uppercase tracking-wider text-mid">Description</label>
+                    <textarea x-model="editModal.data.description" rows="2" class="border-[1.5px] border-ink rounded-sm px-3 py-2 font-mono text-sm bg-paper focus:outline-none focus:border-accent"></textarea>
+                  </div>
+
+                  <label class="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-mid cursor-pointer">
+                    <input type="checkbox" :checked="editPayeChecked" @change="toggleEditPaye($event.target.checked)" />
+                    Payée<span x-show="editModal.data.paye_le" class="text-green normal-case" x-text="`· le ${editModal.data.paye_le}`"></span>
+                  </label>
+
+                  <div class="filename-preview mt-1">
+                    <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Nom de fichier</div>
+                    <div>
+                      <span :class="editFilenameSegments().dateEmpty ? 'seg-empty' : 'seg-date'" x-text="editFilenameSegments().date"></span>_<span :class="editFilenameSegments().vendorEmpty ? 'seg-empty' : 'seg-vendor'" x-text="editFilenameSegments().vendor"></span>_<span :class="editFilenameSegments().montantEmpty ? 'seg-empty' : 'seg-amount'" x-text="editFilenameSegments().montant"></span>_<span :class="editFilenameSegments().catEmpty ? 'seg-empty' : 'seg-cat'" x-text="editFilenameSegments().cat"></span>_<span :class="editFilenameSegments().actEmpty ? 'seg-empty' : 'seg-act'" x-text="editFilenameSegments().act"></span>.pdf
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex flex-col md:flex-row gap-2 p-5 border-t border-rule sticky bottom-0 bg-paper">
+                <button @click="saveEdit()" :disabled="busy || !canSaveEdit()"
+                        class="flex-1 bg-gradient-to-b from-hot to-accent text-white border-[1.5px] border-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-sm shadow-glow-accent disabled:opacity-50 disabled:cursor-not-allowed">
+                  <span x-show="!busy">Enregistrer</span><span x-show="busy">Enregistrement…</span>
+                </button>
+                <button @click="closeEdit()" :disabled="busy" class="border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-sm disabled:opacity-50">Annuler</button>
+                <button @click="confirmDelete(editModal.data); closeEdit()" :disabled="busy" class="border-[1.5px] border-red text-red rounded px-4 py-3 font-bold uppercase tracking-wider text-sm disabled:opacity-50">Supprimer</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============== MODAL SUPPRESSION ============== -->
+          <div x-show="deleteModal.open" x-cloak class="modal-backdrop flex items-center justify-center" @keydown.escape.window="closeDelete()">
+            <div class="bg-paper border-2 border-ink rounded-lg p-6 w-full max-w-[440px] mx-4">
+              <div class="font-display font-black text-2xl uppercase mb-3">Supprimer ?</div>
+              <p class="text-sm mb-2" x-show="!deleteModal.bulk">Cette pièce et ses fichiers seront supprimés définitivement.</p>
+              <p class="text-sm mb-2" x-show="deleteModal.bulk"><span class="font-bold" x-text="selection.length"></span> pièce(s) et leurs fichiers seront supprimées définitivement.</p>
+              <p class="font-mono text-[10px] uppercase tracking-wider text-amber mb-5">Action irréversible</p>
+              <div class="flex gap-2">
+                <button @click="closeDelete()" :disabled="busy" class="flex-1 border-[1.5px] border-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs disabled:opacity-50">Annuler</button>
+                <button @click="doDelete()" :disabled="busy" class="flex-1 bg-red text-white border-[1.5px] border-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs disabled:opacity-50">
+                  <span x-show="!busy">Supprimer</span><span x-show="busy">Suppression…</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============== MODAL CATÉGORIE EN MASSE ============== -->
+          <div x-show="bulkCatModal.open" x-cloak class="modal-backdrop flex items-center justify-center" @keydown.escape.window="bulkCatModal.open=false">
+            <div class="bg-paper border-2 border-ink rounded-lg p-6 w-full max-w-[440px] mx-4">
+              <div class="font-display font-black text-2xl uppercase mb-3">Catégorie en masse</div>
+              <p class="text-sm mb-4">Appliquer une catégorie à <span class="font-bold" x-text="selection.length"></span> pièce(s) :</p>
+              <div class="flex flex-wrap gap-2 mb-5">
+                <template x-for="c in CATEGORIES_EDITABLES" :key="c">
+                  <span class="chip-ingest" :class="busy ? 'opacity-50 cursor-not-allowed' : ''" @click="!busy && applyBulkCat(c)" x-text="c"></span>
+                </template>
+              </div>
+              <button @click="bulkCatModal.open=false" :disabled="busy" class="w-full border-[1.5px] border-ink rounded px-4 py-2 font-mono text-[11px] uppercase tracking-wider disabled:opacity-50">Annuler</button>
+            </div>
+          </div>
+
         </section>
       </template>
 

@@ -5,7 +5,7 @@
 // Cas limites: PDF chiffré (toast clair), HEIC iOS (refus), CDN pdf-lib down (toast), 429 quota (toast)
 
 import * as sb from './supabase.js';
-import { slugify, hashFile, composeFilename, formatDate, formatMontant, toast } from './utils.js';
+import { slugify, hashFile, composeFilename, computeFilenameSegments, formatDate, formatMontant, toast } from './utils.js';
 
 // === FONCTION ALPINE COMPOSANT INGESTION ===
 window.ingestion = function () {
@@ -428,27 +428,8 @@ window.ingestion = function () {
     // ====================================================================
 
     filenameSegments() {
-      const fd = this.formData;
-      const date = fd.date_piece ? formatDate(fd.date_piece, 'iso') : '';
-      const vendor = fd.fournisseur_slug || (fd.fournisseur ? slugify(fd.fournisseur) : '');
-      const montant = (fd.montant_ttc !== null && fd.montant_ttc !== '' && !isNaN(fd.montant_ttc))
-        ? Number(fd.montant_ttc).toFixed(2)
-        : '';
-      const cat = fd.categorie || '';
-      const act = fd.activite || '';
-      return {
-        date: date || 'sans-date',
-        vendor: vendor || 'sans-fournisseur',
-        montant: montant || '0.00',
-        cat: cat || 'sans-cat',
-        act: act || 'TDM',
-        // Marqueurs vides pour styles conditionnels
-        dateEmpty: !date,
-        vendorEmpty: !vendor,
-        montantEmpty: !montant,
-        catEmpty: !cat,
-        actEmpty: !act,
-      };
+      // Source unique partagée avec la vue Pièces (utils.computeFilenameSegments).
+      return computeFilenameSegments(this.formData);
     },
 
     confidenceClass(field) {
@@ -580,7 +561,14 @@ window.ingestion = function () {
           return;
         }
 
-        // 2. INSERT pieces (avec justificatif_url placeholder, sera UPDATE)
+        // === Clés storage capturées UNE fois (principe d'or) ===
+        // La clé écrite en base est EXACTEMENT celle passée à upload() — jamais reconstruite.
+        const ext = (m) => (m === 'application/pdf' ? 'pdf' : (m === 'image/png' ? 'png' : 'jpg'));
+        const outputKey = outputFilename;                                              // objet dans galactus-output
+        const inputKeys = this.pages.map((p, i) => `${this.fileHash}-p${i + 1}.${ext(p.mediaType)}`); // objets galactus-input
+
+        // 2. INSERT pieces. justificatif_path = source de vérité (signature à la volée).
+        // justificatif_url reste 'pending' (colonne dépréciée, plus jamais d'URL signée stockée).
         const insertPayload = {
           date_piece: fd.date_piece,
           fournisseur: fd.fournisseur,
@@ -594,10 +582,11 @@ window.ingestion = function () {
           description: fd.description || null,
           reference_fournisseur: fd.reference_fournisseur || null,
           justificatif_url: 'pending',
+          justificatif_path: `galactus-output/${outputKey}`,
           nom_fichier_normalise: outputFilename,
           statut: 'traite',
           confiance_ocr: Number(fd.confiance_ocr || 0),
-          hash_md5: this.fileHash,
+          hash_sha256: this.fileHash,
         };
 
         let inserted;
@@ -615,46 +604,35 @@ window.ingestion = function () {
           return;
         }
 
-        // 3. Uploads parallèles : toutes les pages originales + PDF concaténé
-        const ext = (m) => (m === 'application/pdf' ? 'pdf' : (m === 'image/png' ? 'png' : 'jpg'));
+        // 3. Uploads parallèles : pages originales (input) + PDF concaténé (output).
+        // Plus de signature ici — on signe à la volée au moment de la preview (vue Pièces).
         const inputUploads = this.pages.map((p, i) =>
-          sb.uploadAndGetSignedUrl(
-            'galactus-input',
-            p.file,
-            `${this.fileHash}-p${i + 1}.${ext(p.mediaType)}`
-          )
+          sb.uploadFile('galactus-input', p.file, inputKeys[i])
         );
-        const outputUpload = sb.uploadAndGetSignedUrl('galactus-output', pdfBlob, outputFilename);
+        const outputUpload = sb.uploadFile('galactus-output', pdfBlob, outputKey);
 
-        let signedUrls, outputSignedUrl;
         try {
-          [signedUrls, outputSignedUrl] = await Promise.all([
-            Promise.all(inputUploads),
-            outputUpload,
-          ]);
+          await Promise.all([Promise.all(inputUploads), outputUpload]);
         } catch (err) {
           toast(`Échec upload buckets : ${err.message}`, 'error');
           console.error('[INGESTION] Échec upload', { message: err.message });
-          // Pièce en DB mais sans justificatif — Pierre devra réuploader manuellement Sprint 3
+          // Pièce en DB mais fichier(s) manquant(s) — la preview dégradera en placeholder.
           this.busy = false;
           return;
         }
 
-        // 4. UPDATE pieces avec URLs réelles + pages jsonb
+        // 4. UPDATE pieces : pages jsonb avec les CHEMINS storage capturés (pas d'URL signée).
         const pagesJson = this.pages.map((p, i) => ({
           numero: i + 1,
-          url_storage_input: signedUrls[i],
+          path_storage_input: `galactus-input/${inputKeys[i]}`,
           media_type: p.mediaType,
         }));
 
         try {
-          await sb.updatePiece(inserted.id, {
-            justificatif_url: signedUrls[0],
-            pages: pagesJson,
-          });
+          await sb.updatePiece(inserted.id, { pages: pagesJson });
         } catch (err) {
-          console.warn('[INGESTION] UPDATE pieces partiellement échoué', { message: err.message });
-          // Non-bloquant : la pièce est en DB, le PDF est dans output, justificatif_url='pending'
+          console.warn('[INGESTION] UPDATE pages partiellement échoué', { message: err.message });
+          // Non-bloquant : la pièce est en DB, justificatif_path déjà posé à l'INSERT.
         }
 
         toast(`Pièce validée — ${outputFilename}`, 'success');

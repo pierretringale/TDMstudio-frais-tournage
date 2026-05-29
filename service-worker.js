@@ -4,7 +4,7 @@
 // Contraintes: pas d'interception POST/PUT/DELETE (Supabase mutations), pas de cache des credentials
 // Cas limites: offline → toast Alpine "fonctionnalités limitées" + fallback HTML cached
 
-const CACHE_VERSION = 'galactus-v2-sprint2';
+const CACHE_VERSION = 'galactus-v3-sprint3';
 
 // Shell statique à cacher au install (assets locaux + fonts).
 const SHELL_ASSETS = [
@@ -16,6 +16,8 @@ const SHELL_ASSETS = [
   './js/supabase.js',
   './js/utils.js',
   './js/ingestion.js',
+  './js/pieces.js',
+  './js/dashboard.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'

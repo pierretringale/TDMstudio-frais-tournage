@@ -21,6 +21,14 @@ Convention : **P1** = critique (bloque la prod), **P2** = important (à fixer pr
 
 ## P2 — Important
 
+### ✅ RÉSOLU — Étiquette menteuse panneau « File OCR » (2026-05-31)
+
+- **Symptôme** : le panneau droit de `#/ingestion` desktop affichait « Liste des pièces en cours · alimentée Sprint 3 » alors que rien ne l'alimentait (Sprint 3 a livré `#/pieces`/`#/dashboard`, pas ce panneau interne).
+- **Cause racine** : stub Sprint 2 (panel File OCR, §4.1) avec un renvoi en avant jamais honoré.
+- **Fix appliqué** : relabel honnête → « File de validation en série · à venir (Sprint 4) » (Sprint 3.1, 2026-05-31), bump SW `galactus-v3-sprint3.1`.
+- **Backlog** : câbler le panneau File OCR (liste pièces en cours / file de validation + bouton « Valider en série ») — **Sprint 4**, recoupe la queue mini-rafale. Voir `galactus-decisions.md` entrée 35.
+- **Récurrent** : non.
+
 ### HEIC iPhone non supporté (2026-05-26)
 
 - **Symptôme** : Pierre prend une photo de facture avec iPhone récent, l'upload échoue ou produit un fichier illisible côté `pdf-lib`.

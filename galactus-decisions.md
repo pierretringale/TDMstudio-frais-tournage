@@ -235,3 +235,10 @@ Une entrée par décision structurante. Datée. Avec **Raison** + **Conséquence
 - **Décision** : assumer des alertes **dormantes** (les 6 restent "jamais ingéré") plutôt que mordre dans `ingestion.js` ce sprint. Backlog : câbler `derniere_facture_date` à l'ingestion sur match de slug.
 - **Raison** : sprint propre (périmètre Pièces/Dashboard), évite un changement non testé dans le flux d'ingestion.
 - **Conséquence si on change** : dès que le câblage existe, la logique d'alerte (seuils 35/95/380 j, ⏳ < 5j de l'échéance) s'activera sans autre modif Dashboard.
+
+### 35. Panneau « File OCR » vue Ingestion desktop — stub relabel honnête (Sprint 3.1, 2026-05-31)
+
+- **Contexte** : le panneau droit de `#/ingestion` (desktop, sous-vue home) affichait « Liste des pièces en cours · alimentée Sprint 3 » — stub Sprint 2 (§4.1) avec un renvoi en avant jamais honoré. Sprint 3 a couvert `#/pieces` et `#/dashboard`, pas ce panneau interne.
+- **Décision** : relabel cosmétique → « File de validation en série · à venir (Sprint 4) ». Header « File OCR » et esthétique `placeholder-striped` conservés. Aucun câblage. Bump SW `galactus-v3-sprint3.1` (index.html est dans le shell cache).
+- **Raison** : que l'outil arrête de promettre du vide ; garder l'équilibre visuel 2 colonnes (option « masquer via x-show » écartée → rend l'ingestion desktop asymétrique).
+- **Conséquence si on change** : le câblage réel (liste pièces en cours / file de validation + bouton « Valider en série ») est rattaché au Sprint 4 — il recoupe la queue mini-rafale.

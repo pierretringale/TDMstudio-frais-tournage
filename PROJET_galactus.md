@@ -66,6 +66,7 @@ galactus/
 | Route / Élément | Description | État | Sprint |
 |---|---|---|---|
 | `#/ingestion` (défaut) | Vue Ingestion bout en bout : capture/drop → OCR → validation → INSERT pieces + uploads buckets. Écrit désormais `justificatif_path` (chemins capturés, plus d'URL signée stockée) | ✅ Actif | Sprint 2 / 3 |
+| Panneau « File OCR » (`#/ingestion` desktop) | Colonne droite 340px, sous-vue home. Stub `placeholder-striped` relabellé « File de validation en série · à venir (Sprint 4) » (Sprint 3.1). Câblage réel (liste pièces en cours / file de validation + « Valider en série ») reporté Sprint 4 (recoupe queue mini-rafale) | 🟡 Stub | Sprint 4 |
 | `#/dashboard` | 5 KPI (CA YTD, dépenses TDM/VUM + delta M-1, à uploader Indy, NDF mois) + bannière TVA/Pré-CA3 (MIX « à ventiler ») + fournisseurs récurrents (alertes) + graphes SVG vanilla (barres 12 mois stacked, camembert année). Clic KPI → Pièces pré-filtrée | ✅ Actif | Sprint 3 |
 | `#/pieces` | Tableau desktop / cards mobile, filtres+tri **serveur** (recherche, catégorie/activité/statut multi, période, payé), footer totaux sticky, sélection multiple + 3 actions groupées (uploadé Indy, catégorie masse, suppression), modal édition (recompose `nom_fichier_normalise` DB-only, warning Indy, « Voir » justificatif signé à la volée), suppression ligne+fichiers | ✅ Actif | Sprint 3 |
 | `#/exports` | Vue Exports (placeholder striped) | 🟡 Stub | Sprint 4 |

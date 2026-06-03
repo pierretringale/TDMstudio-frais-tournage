@@ -70,6 +70,9 @@ window.ingestion = function () {
       existing: null,                      // {id, date_piece, fournisseur, montant_ttc, categorie, activite, ...}
     },
 
+    // « Créer quand même » a armé un doublon volontaire (one-shot, consommé par resetForm). Sprint 3.5.
+    forcerDoublonArme: false,
+
     // Modal multi-pièces (drop multiple desktop)
     multiDrop: {
       open: false,
@@ -457,6 +460,16 @@ window.ingestion = function () {
       this.doublon.existing = null;
     },
 
+    // « Créer quand même » : arme le forçage, ferme l'overlay bloquant pour libérer le formulaire,
+    // puis ré-emprunte le chemin de sauvegarde normal (qui injecte hash_collision_n via le flag).
+    // Si l'OCR est partiel, validateAndSave alerte sur les champs requis SANS consommer le flag
+    // → l'utilisateur complète et re-clique « Valider », le forçage tient toujours.
+    async forcerCreationDoublon() {
+      this.forcerDoublonArme = true;
+      this.doublon.open = false;
+      await this.validateAndSave({ continueRafale: false });
+    },
+
     formatExistingInfo() {
       const e = this.doublon.existing;
       if (!e) return '';
@@ -589,11 +602,25 @@ window.ingestion = function () {
           hash_sha256: this.fileHash,
         };
 
+        // Chemin forcé « Créer quand même » : doublon volontaire → variante hash_collision_n = max+1.
+        // Chemin normal : on omet hash_collision_n (la DB applique 0) et le catch ci-dessous refuse les doublons stricts.
+        const forcer = this.forcerDoublonArme;
+        if (forcer) {
+          try {
+            insertPayload.hash_collision_n = await sb.prochainCollisionN(this.fileHash);
+          } catch (err) {
+            toast(`Échec calcul variante doublon : ${err.message}`, 'error');
+            console.error('[INGESTION] Échec prochainCollisionN', { message: err.message });
+            this.busy = false;
+            return; // flag NON consommé → re-clic « Valider » réessaiera
+          }
+        }
+
         let inserted;
         try {
           inserted = await sb.insertPiece(insertPayload);
         } catch (err) {
-          // UNIQUE collision sur hash_md5 → doublon strict
+          // UNIQUE collision sur (hash_sha256, hash_collision_n) → doublon strict
           if (err.message?.includes('duplicate') || err.message?.includes('unique')) {
             toast('Doublon strict refusé : cette pièce existe déjà en DB', 'error');
           } else {
@@ -635,7 +662,20 @@ window.ingestion = function () {
           // Non-bloquant : la pièce est en DB, justificatif_path déjà posé à l'INSERT.
         }
 
-        toast(`Pièce validée — ${outputFilename}`, 'success');
+        // Sprint 3.5 — réveille l'alerte fournisseur récurrent (best-effort, non bloquant).
+        // Slug EXACT écrit sur la pièce ; le helper ne jette jamais → n'impacte pas l'ingestion.
+        await sb.toucherFournisseurRecurrent(
+          insertPayload.fournisseur_slug,
+          insertPayload.date_piece,
+          insertPayload.montant_ttc
+        );
+
+        toast(
+          forcer
+            ? `Doublon enregistré (variante #${insertPayload.hash_collision_n}) — ${outputFilename}`
+            : `Pièce validée — ${outputFilename}`,
+          'success'
+        );
 
         // 5. Suite : rafale ou terminer
         if (continueRafale) {
@@ -686,6 +726,7 @@ window.ingestion = function () {
       this.ocrTextBrut = '';
       this.fileHash = null;
       this.doublon = { open: false, existing: null };
+      this.forcerDoublonArme = false;
     },
   };
 };

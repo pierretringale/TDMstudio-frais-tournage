@@ -668,10 +668,9 @@
                         class="flex-1 border-[1.5px] border-ink text-ink rounded px-4 py-3 font-bold uppercase tracking-wider text-xs">
                   Annuler
                 </button>
-                <button disabled
-                        title="Disponible Sprint 3 (gestion collisions hash)"
-                        class="flex-1 bg-faint text-paper border-[1.5px] border-faint rounded px-4 py-3 font-bold uppercase tracking-wider text-xs opacity-60 cursor-not-allowed">
-                  Créer quand même (Sprint 3)
+                <button @click="forcerCreationDoublon()"
+                        class="flex-1 bg-amber text-ink border-[1.5px] border-amber rounded px-4 py-3 font-bold uppercase tracking-wider text-xs hover:opacity-90">
+                  Créer quand même
                 </button>
               </div>
             </div>

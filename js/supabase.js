@@ -260,20 +260,76 @@ export async function deleteFile(bucket, name) {
 
 // === SPRINT 2 — INGESTION HELPERS ===
 
-// Recherche d'une pièce existante par hash SHA-256 (dédup avant ingestion).
-// hash_md5 = nom legacy de la colonne (contenu : SHA-256 hex 64, voir galactus-decisions.md entrée 4).
+// Recherche de la pièce d'origine par hash SHA-256 (dédup avant ingestion).
+// Colonne hash_sha256 (renommée au Sprint 3 ; contient un SHA-256 hex 64, voir galactus-decisions.md entrée 4).
+// order+limit(1) : sous UNIQUE(hash_sha256, hash_collision_n) un hash peut avoir plusieurs lignes
+// (doublons volontaires) — on renvoie l'originale (collision_n le plus bas) sans planter
+// (.maybeSingle() seul lèverait une erreur PostgREST dès qu'il existe >1 ligne).
 // Renvoie la ligne pieces ou null.
 export async function findPieceByHash(hash) {
   const { data, error } = await sb
     .from('pieces')
     .select('id, date_piece, fournisseur, fournisseur_slug, montant_ttc, categorie, activite, statut, reference_fournisseur')
-    .eq('hash_md5', hash)
+    .eq('hash_sha256', hash)
+    .order('hash_collision_n', { ascending: true })
+    .limit(1)
     .maybeSingle();
   if (error) {
     console.error('[SUPABASE-PIECES] Échec findPieceByHash', { message: error.message });
     throw error;
   }
   return data;
+}
+
+// Prochain hash_collision_n libre pour ce hash (0 si aucune pièce, sinon max+1). Sprint 3.5.
+// Sert au chemin « Créer quand même » : la nouvelle variante prend max+1.
+export async function prochainCollisionN(hash) {
+  const { data, error } = await sb
+    .from('pieces')
+    .select('hash_collision_n')
+    .eq('hash_sha256', hash)
+    .order('hash_collision_n', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('[SUPABASE-PIECES] Échec prochainCollisionN', { message: error.message });
+    throw error;
+  }
+  return (data?.hash_collision_n ?? -1) + 1; // 1ᵉʳ doublon volontaire → 1
+}
+
+// Réveille l'alerte d'un fournisseur récurrent : met à jour derniere_facture_date (Sprint 3.5).
+// Best-effort STRICT : ne doit JAMAIS faire échouer l'ingestion (la pièce est déjà en base).
+// No-op si le slug ne matche aucun fournisseur récurrent. Anti-rewind : ne recule jamais la date.
+export async function toucherFournisseurRecurrent(slug, datePiece, montantTtc) {
+  if (!slug || !datePiece) return;
+  try {
+    const { data: fournisseur, error: selErr } = await sb
+      .from('fournisseurs_recurrents')
+      .select('id, derniere_facture_date')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (selErr) {
+      console.error('[SUPABASE-FOURNISSEURS] Échec lecture', { message: selErr.message });
+      return;
+    }
+    if (!fournisseur) return; // fournisseur non récurrent → rien à faire
+
+    // Anti-rewind : YYYY-MM-DD comparable lexicographiquement, ne pas reculer la date.
+    if (fournisseur.derniere_facture_date && fournisseur.derniere_facture_date >= datePiece) return;
+
+    const patch = { derniere_facture_date: datePiece };
+    if (montantTtc != null && !Number.isNaN(Number(montantTtc))) {
+      patch.derniere_facture_montant = Number(montantTtc);
+    }
+    const { error: updErr } = await sb
+      .from('fournisseurs_recurrents')
+      .update(patch)
+      .eq('id', fournisseur.id);
+    if (updErr) console.error('[SUPABASE-FOURNISSEURS] Échec update', { message: updErr.message });
+  } catch (erreur) {
+    console.error('[SUPABASE-FOURNISSEURS] toucherFournisseurRecurrent', { message: erreur.message });
+  }
 }
 
 // Invoke l'Edge Function analyze-receipt (Sprint 2).

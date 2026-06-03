@@ -42,8 +42,8 @@ export function formatMontant(n) {
 
 // === HASH FICHIER (SHA-256) ===
 // Web Crypto SubtleCrypto n'expose pas MD5 — on utilise SHA-256.
-// La colonne DB s'appelle hash_md5 pour des raisons historiques mais contient
-// du SHA-256 (voir galactus-decisions.md entrée 4).
+// La colonne DB s'appelle hash_sha256 (renommée au Sprint 3 ; voir galactus-decisions.md entrée 4)
+// et contient bien du SHA-256.
 // Renvoie une string hex 64 caractères.
 export async function hashFile(file) {
   const buf = await file.arrayBuffer();

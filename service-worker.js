@@ -4,7 +4,7 @@
 // Contraintes: pas d'interception POST/PUT/DELETE (Supabase mutations), pas de cache des credentials
 // Cas limites: offline → toast Alpine "fonctionnalités limitées" + fallback HTML cached
 
-const CACHE_VERSION = 'galactus-v3-sprint3.1';
+const CACHE_VERSION = 'galactus-v3-sprint3.5';
 
 // Shell statique à cacher au install (assets locaux + fonts).
 const SHELL_ASSETS = [

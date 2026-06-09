@@ -40,9 +40,10 @@ Patterns figés Sprint 0. À respecter dans toute session de build. Pour les con
 
 ## Git
 
-- **Naming branches** : pas de branche par sprint au MVP (single-user). Commits directs sur `main` après validation Pierre.
+- **Naming branches** : pas de branche par sprint au MVP (single-user). Commits directs sur `main`.
+- **Push & merge autonomes en clôture** : une fois la clôture déclenchée par Pierre (« c'est bon / validé / nickel / clôture » ou équivalent), CC exécute la séquence git complète — `add` / `commit` / `push`, et `merge` sur `main` si une branche existe — en autonomie, sans redemander confirmation commande par commande. Le déclencheur de clôture vaut autorisation pour toute la séquence.
 - **Commits descriptifs en français**, conventional commits : `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `security:`.
-- **Pas de `git push` pendant upload actif** (règle générale Pierre — applicable Sprint 2+).
+- **Pas de `git push` pendant upload actif** (règle générale Pierre — applicable Sprint 2+) — seule réserve qui subsiste à l'autonomie ci-dessus.
 - **Co-Authored-By** obligatoire sur les commits Claude Code.
 
 ## Storage
